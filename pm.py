@@ -2,6 +2,7 @@ import yaml
 import argparse
 from pathlib import Path
 import os
+import time
 
 from prompt_toolkit import Application
 from prompt_toolkit.completion import WordCompleter
@@ -394,6 +395,19 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
         data.open_note_project(args[1])
     elif args[0] == 'context-note': 
         data.open_note_context(args[1], args[2])
+    elif args[0] == 'backup':
+        # check if git repo
+        assert os.path.exists(os.path.join(data.LOCATION,'.git'))
+        os.system(f"git -C '{data.LOCATION}' add -A 'notes' > /dev/null")
+        os.system(f"git -C '{data.LOCATION}' add -A 'Active_Contexts.yaml' > /dev/null")
+        os.system(f"git -C '{data.LOCATION}' add -A 'Active_Projects.yaml' > /dev/null")
+        os.system(f"git -C '{data.LOCATION}' commit -m 'Backup from ProjectManager2 on {time.ctime()}' > /dev/null")
+        os.system(f"git -C '{data.LOCATION}' push --quiet")
+        pass
+
+    
+
+        
     else:
         raise ValueError(f"Unknown Arguments {args}")
 
