@@ -230,7 +230,7 @@ class TUIManager:
             return '(Data cannot be presented)'
     
     def return_head_text(self):
-        return f"=== ProjectManager2 ===  Mode: '{self.mode} {self.mode_content}' | Filters: {self.filter} | {'All safed' if not self.unsafed_changes else '>Unsafed Changes<'} ==="
+        return f"=== ProjectManager2 ===  Mode: '{self.mode} {self.mode_content}' | Filters: {self.filter} | {'All safed' if not self.unsafed_changes else '>Unsafed Changes<'}{' | HELP-VIEW' if self.help_message_visible else ''}{' | CONTEXT-OVERVIEW' if self.cat_list_visible else ''} ==="
 
 def CommandParser(data: Data, tuimanager: TUIManager, args):
     if args[0] == 'code':
@@ -293,12 +293,14 @@ def main():
     def show_help(event):
         man.help_message_visible = not man.help_message_visible
         output_text.text = man.return_main_text()
+        head_text.text = man.return_head_text()
     
     # Show categories
     @kb.add('f2')
     def show_cat(event):
         man.cat_list_visible = not man.cat_list_visible
         output_text.text = man.return_main_text()
+        head_text.text = man.return_head_text()
 
 
     # Event when Enter is pressed
