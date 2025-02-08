@@ -14,7 +14,7 @@ from prompt_toolkit.widgets import TextArea
 HELP_MESSAGE = """
     ### All modes (OPEN and GROUP) ###
     # TUI handling
-    open <PROJECT>  -> open a project and show its resources
+    + open <PROJECT>  -> open a project and show its resources
 
     group <CATEGORY>  -> open the group view with category (use 'group *' to show all projects without grouping)
     filter <CATEGORY> <CONTEXT>  -> only show projects with that context
@@ -115,14 +115,26 @@ class TUIManager:
         # self.line_length = 10  # show 10 lines by default
         self.help_message_visible = False
         self.help_message_line = 0
+        self.unsafed_changes = False
     
-    def return_top_text(self):
+    def return_main_text(self):
         if self.help_message_visible:
             text_rows = HELP_MESSAGE.splitlines()
             return '\n'.join(text_rows[self.help_message_line:])
+        
+        elif self.mode == 'open':  # Open Mode
+            open_proj = self.CONTENT.Projects[self.mode_content]  # dict of the project that is open
+            if 'resources' not in open_proj or not bool(open_proj['resources']):
+                return '(No Resources)'
+            else:
+                text_rows = open_proj['resources'].keys()
+                return '\n'.join(text_rows)  # No Scrolling functionality for resources currently
         else:
             text_rows = ['- ' + str(proj) for proj in self.CONTENT.Projects]
             return '\n'.join(text_rows[self.line_start:])
+    
+    def return_head_text(self):
+        return f"=== ProjectManager2 ===  Mode: '{self.mode} {self.mode_content}' | Filters: {self.filter} | {'All safed' if not self.unsafed_changes else '>Unsafed Changes<'} ==="
 
 def CommandParser(data: Data, tuimanager: TUIManager, args):
     if args[0] == 'code':
@@ -131,8 +143,14 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
         data.load()
     elif args[0] == 'dump':
         data.dump()
+        tuimanager.unsafed_changes = False
     elif args[0] == 'create':
         data.add_project(args[1])
+        tuimanager.unsafed_changes = True
+    elif args[0] == 'open':
+        assert args[1] in data.Projects
+        tuimanager.mode = 'open'
+        tuimanager.mode_content = args[1]
     else:
         raise ValueError(f"Unknown Arguments {args}")
 
@@ -169,7 +187,7 @@ def main():
     @kb.add('f1')
     def exit_app(event):
         man.help_message_visible = not man.help_message_visible
-        output_text.text = man.return_top_text()
+        output_text.text = man.return_main_text()
 
 
     # Event when Enter is pressed
@@ -177,7 +195,8 @@ def main():
     def handle_enter(event):
         command = command_input.text  # get text
         CommandParser(data, man, command.split())  # Parse the command
-        output_text.text = man.return_top_text()
+        output_text.text = man.return_main_text()
+        head_text.text = man.return_head_text()
         command_input.text = ''  # Clear the input area
         # raise ValueError('This is a test')  # TODO Just raise value error if options do not work
     
@@ -188,7 +207,7 @@ def main():
             man.help_message_line += 1
         else:
             man.line_start +=1
-        output_text.text = man.return_top_text()
+        output_text.text = man.return_main_text()
     
     @kb.add('up')
     def handle_up(event):
@@ -196,7 +215,7 @@ def main():
             man.help_message_line = max(man.help_message_line- 1,0)
         else:
             man.line_start = max(man.line_start-1,0)
-        output_text.text = man.return_top_text()
+        output_text.text = man.return_main_text()
     
     @kb.add('escape')  # jumping to 0
     def handle_escape(event):
@@ -204,11 +223,15 @@ def main():
             man.help_message_line = 0
         else:
             man.line_start = 0
-        output_text.text = man.return_top_text()
+        output_text.text = man.return_main_text()
 
 
-    # Top section - static text and output display
-    output_text = FormattedTextControl("This is the static text at the top.")
+    # Head section 
+    head_text = FormattedTextControl("This is the head text.")
+    head_window = Window(content=head_text, wrap_lines=False, height=1)
+
+    # Top section
+    output_text = FormattedTextControl("This is the main text.")
     output_window = Window(content=output_text, wrap_lines=True)
 
     # Commands for completer
@@ -244,7 +267,9 @@ def main():
 
     # Main layout
     root_container = HSplit([
-        output_window,       # Static text at the top
+        head_window,  # Head text display 
+        Window(height=1, char="-"),  # Divider
+        output_window,       # Main text display
         Window(height=1, char="-"),  # Divider
         command_input        # Bottom input area
     ])
@@ -259,7 +284,8 @@ def main():
     )
 
     # Load once
-    output_text.text = man.return_top_text()
+    head_text.text = man.return_head_text()
+    output_text.text = man.return_main_text()
     application.run()
 
     # breakpoint()
