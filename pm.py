@@ -15,56 +15,56 @@ from prompt_toolkit.widgets import TextArea
 HELP_MESSAGE = """
     ### All modes (OPEN and GROUP) ###
     # TUI handling
-        + open <PROJECT>  -> open a project and show its resources
+        open <PROJECT>    -> open a project and show its resources
+        group <CATEGORY>  -> open the group view with category (use 'group *' to show all projects without grouping)
 
-        + group <CATEGORY>  -> open the group view with category (use 'group *' to show all projects without grouping)
-        filter <CATEGORY> <CONTEXT>  -> only show projects with that context
-
-        + note <PROJECT>   -> open markdown note
-        + context-note <CATEGORY> <CONTEXT>  -> open markdown note 
-
-    # Modifications
-        + create <PROJECT>      -> create a new project
-        + delete <PROJECT>      -> delete a projects
-        archive <PROJECT>     -> archive a project
-        unarchive <PROJECT>   -> unarchive a project
-
-        + link <PROJECT> <CATEGORY> <CONTEXT>    -> Create a new link
-        + unlink <PROJECT> <CATEGORY> <CONTEXT>  -> Remove a link
-
-        + context-create <CATEGORY> <CONTEXT>   -> create a new context (automatically adds category)
-        + context-delete <CATEGORY> <CONTEXT>   -> delete a context
-
-        + category-create <CATEGORY>  -> create a new category
-        + category-delete <CATEGORY>  -> deleta a category
-
-        + qnote <PROJECT>  -> modify quicknote
-        + context-qnote <CATEGORY> <CONTEXT>  -> modify quicknote 
-
-        + code    -> Open vscode of the folder to make modifications manually
-        + reload  -> Make sure to reload when making manual modifications
-        + dump  -> Dump changes to file (Will be removed in later version)
+        note <PROJECT>                     -> open markdown note
+        context-note <CATEGORY> <CONTEXT>  -> open markdown note 
 
         backup  -> push changes to git (git -A commit; push)
+        code    -> Open vscode of the folder to make modifications manually
+        reload  -> Make sure to reload when making manual modifications
+        
+    # Modifications
+        dump    -> Dump changes to file 
+        create <PROJECT>      -> create a new project
+        delete <PROJECT>      -> delete a projects
+        link <PROJECT> <CATEGORY> <CONTEXT>    -> Create a new link
+        unlink <PROJECT> <CATEGORY> <CONTEXT>  -> Remove a link
+
+        context-create <CATEGORY> <CONTEXT>   -> create a new context (automatically adds category)
+        context-delete <CATEGORY> <CONTEXT>   -> delete a context
+        category-create <CATEGORY>  -> create a new category
+        category-delete <CATEGORY>  -> deleta a category
+
+        qnote <PROJECT>  -> modify quicknote
+        context-qnote <CATEGORY> <CONTEXT>  -> modify quicknote 
 
     ### In OPEN-mode only ###
         resource <RESOURCE> <ACTION>  -> do action for resource
-        resource-create <RESOURCE> <TYPE> <source>  -> create a resource of TYPE with source
-        resource-info <RESOURCE>      -> show infor of that resource 
+        resource-create <RESOURCE> <TYPE> <SOURCE>  -> create a resource with name RESOURCE of TYPE with SOURCE
+        resource-delete <RESOURCE>  -> delete a resource
 
     ### ACTIONS ###
-        - SVN: code, clone
+        - SVN: code, checkout
         - GIT: code, clone
         - LINK: open
 
-    ### keys ###
+    ### KEYBINDINGS ###
         + ctrl-q  -> Quit
         + f1      -> Show help
         + f2      -> Show categories
         + esc     -> scroll to top
+
+    ### To be added someday ###
+        filter <CATEGORY> <CONTEXT>  -> only show projects with that context
+
+        archive <PROJECT>     -> archive a project
+        unarchive <PROJECT>   -> unarchive a project
 """
 
 NOTES_SUBPATH = 'notes'
+RESOURCES_SUBPATH = 'resources'
 
 COMMANDS = [
     'open',
@@ -90,7 +90,11 @@ COMMANDS = [
     'backup',
     'resource',
     'resource-create',
-    'resource-info'
+    'resource-delete',
+
+    'checkout',
+    'clone',
+    'open'
     ]
 
 class Data:
@@ -153,6 +157,11 @@ class Data:
         all_contexts.sort()
         return all_contexts
 
+    def get_resources(self, project):  # list of resources for a project
+        assert project in self.Projects
+
+        return self.Projects[project]['resources'].keys() if 'resources' in self.Projects[project] else []
+
     def check_context(self, proj, cat, context):  # check if project links to specific context
         return proj in self.Projects and 'links' in self.Projects[proj] and cat in self.Projects[proj]['links'] and context in self.Projects[proj]['links'][cat]
 
@@ -190,6 +199,17 @@ class Data:
     def remove_context(self, cat, context):
         assert cat in self.Contexts and context in self.Contexts[cat]
         del self.Contexts[cat][context]
+
+    def add_resource(self, proj, res_name, res_type, res_source):
+        assert proj in self.Projects
+        if 'resources' not in self.Projects[proj]:
+            self.Projects[proj]['resources'] = dict()
+        assert res_name not in self.Projects[proj]['resources']
+        self.Projects[proj]['resources'][res_name] = {'type': res_type, 'source': res_source}
+    
+    def remove_resource(self, proj, res_name):
+        assert proj in self.Projects and res_name in self.Projects[proj]['resources']
+        del self.Projects[proj]['resources'][res_name]
 
     def link(self, project, category, context):
         assert project in self.Projects
@@ -245,6 +265,34 @@ class Data:
                 pass
         os.system(f"code -g '{file_path}' -n '{notes_path}'")
 
+    def resource_action(self, project, resource, action):
+        assert project in self.Projects
+        assert 'resources' in self.Projects[project]
+        assert resource in self.Projects[project]['resources']
+
+        resource_dict = self.Projects[project]['resources'][resource]
+
+        gen_resource_path = os.path.join(self.LOCATION, RESOURCES_SUBPATH)
+        this_resource_path = os.path.join(gen_resource_path, project, resource)
+
+        if not os.path.exists(gen_resource_path):
+            os.makedirs(gen_resource_path)
+
+        if action == 'clone' and resource_dict['type'] == 'GIT':
+            if not os.path.exists(this_resource_path):  # Make directory
+                os.makedirs(this_resource_path)
+            os.system(f"git clone {resource_dict['source']} '{this_resource_path}'")
+        elif action == 'checkout' and resource_dict['type'] == 'SVN':
+            if not os.path.exists(this_resource_path):  # Make directory
+                os.makedirs(this_resource_path)
+            os.system(f"svn checkout {resource_dict['source']} '{this_resource_path}'")
+        elif action == 'code':
+            os.system(f"code '{this_resource_path}'")
+        elif action == 'open':
+            os.system(f"open '{this_resource_path}'")
+        else:
+            raise ValueError(f"Action {action} is not available for resource of type {resource_dict['type']}")
+
 
 class TUIManager:
     """Manages how to show the data."""
@@ -284,6 +332,24 @@ class TUIManager:
 
         return f"{project}{note}{qnote}"
     
+    def resources_str(self, project, resource):
+        assert project in self.CONTENT.Projects
+        assert 'resources' in self.CONTENT.Projects[project]
+        assert resource in self.CONTENT.Projects[project]['resources']
+
+        resource_dict = self.CONTENT.Projects[project]['resources'][resource]
+
+        gen_resource_path = os.path.join(self.CONTENT.LOCATION, RESOURCES_SUBPATH)
+        this_resource_path = os.path.join(gen_resource_path, project, resource)
+
+        cloned = ''
+        if os.path.exists(this_resource_path):
+            cloned = " [C]"
+        
+        return f"{resource_dict['type']}: {resource}{cloned} ({resource_dict['source']})"
+
+
+
     def return_main_text(self):
         if self.help_message_visible:
             text_rows = HELP_MESSAGE.splitlines()
@@ -305,7 +371,8 @@ class TUIManager:
             if 'resources' not in open_proj or not bool(open_proj['resources']):
                 text_rows.append('(No Resources)')
             else:
-                text_rows.extend(open_proj['resources'].keys())
+                for res in open_proj['resources']:
+                    text_rows.append(f" - {self.resources_str(self.mode_content,res)}")
             return '\n'.join(text_rows)  # No Scrolling functionality for resources currently
         
         elif self.mode == 'group':  # Group Mode
@@ -337,7 +404,10 @@ class TUIManager:
     def autocomplete_suggestions(self):
         suggestions = []
         suggestions.extend(COMMANDS)
-        suggestions.extend(self.CONTENT.Projects.keys())
+        for proj in self.CONTENT.Projects.keys():
+            suggestions.append(proj)
+            for res in self.CONTENT.get_resources(proj):
+                suggestions.append(res)
         suggestions.extend(self.CONTENT.get_categories())
         for cat in self.CONTENT.get_categories():
             suggestions.extend(self.CONTENT.get_contexts(cat))
@@ -403,11 +473,20 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
         os.system(f"git -C '{data.LOCATION}' add -A 'Active_Projects.yaml' > /dev/null")
         os.system(f"git -C '{data.LOCATION}' commit -m 'Backup from ProjectManager2 on {time.ctime()}' > /dev/null")
         os.system(f"git -C '{data.LOCATION}' push --quiet")
-        pass
-
-    
-
-        
+    elif args[0] == 'resource-create':
+        assert tuimanager.mode == 'open'
+        proj = tuimanager.mode_content
+        data.add_resource(proj,args[1], args[2], args[3])
+        tuimanager.unsafed_changes = True
+    elif args[0] == 'resource-delete':
+        assert tuimanager.mode == 'open'
+        proj = tuimanager.mode_content
+        data.remove_resource(proj, args[1])
+        tuimanager.unsafed_changes = True
+    elif args[0] == 'resource':
+        assert tuimanager.mode == 'open'
+        proj = tuimanager.mode_content
+        data.resource_action(proj, args[1], args[2])
     else:
         raise ValueError(f"Unknown Arguments {args}")
 
@@ -417,8 +496,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('LOCATION', type=Path, help='Specify folder.')
     parser.add_argument('-i', '--init', action='store_true', help='Initialize necessary files in the folder.')
-
-    # TODO write init function that generates the files
     
     args = parser.parse_args()
     LOCATION = args.LOCATION.resolve()
@@ -430,7 +507,7 @@ def main():
         files_to_create = ["Active_Contexts.yaml", "Active_Projects.yaml"]
         for file in files_to_create:
             filepath = os.path.join(LOCATION,file)
-            if not os.path.exists(filepath):
+            if not os.path.isfile(filepath):
                 with open(filepath, "w+") as f:
                     pass
                 print(f"Created file: {file}")
@@ -578,6 +655,7 @@ if __name__ == "__main__":
 # - shows resources of a specific projects
 
 # NEXT TODO:
-# - backup
-# - resource management
+# - autocomplete resources
 # - fill my projects in and see how it works
+# - archive functionality
+# - filter functionality
