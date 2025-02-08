@@ -16,7 +16,7 @@ HELP_MESSAGE = """
     # TUI handling
     + open <PROJECT>  -> open a project and show its resources
 
-    group <CATEGORY>  -> open the group view with category (use 'group *' to show all projects without grouping)
+    + group <CATEGORY>  -> open the group view with category (use 'group *' to show all projects without grouping)
     filter <CATEGORY> <CONTEXT>  -> only show projects with that context
 
     note <PROJECT>   -> open markdown note
@@ -56,8 +56,8 @@ HELP_MESSAGE = """
     ### keys ###
     + ctrl-q  -> Quit
     + f1      -> Show help
-    f2      -> Show categories
-    esc     -> scroll to top
+    + f2      -> Show categories
+    + esc     -> scroll to top
 """
 
 class Data:
@@ -68,16 +68,55 @@ class Data:
         self.Contexts = dict()
         self.load()
     
+    # Loading and Dumping
     def load(self):
+        self.Projects = dict()
         with open(os.path.join(self.LOCATION,'Active_Projects.yaml'), 'r') as infile:
             self.Projects = yaml.safe_load(infile)
-
+        with open(os.path.join(self.LOCATION,'Active_Contexts.yaml'), 'r') as infile:
+            self.Contexts = yaml.safe_load(infile)
+    
     def dump(self):
         with open(os.path.join(self.LOCATION,'Active_Projects.yaml'), 'w') as outfile:
             yaml.dump(self.Projects, outfile)
+        with open(os.path.join(self.LOCATION,'Active_Contexts.yaml'), 'w') as outfile:
+            yaml.dump(self.Contexts, outfile)
 
-    # TODO: Add self.dump() after some modifications
+    # Get Information
+    def get_categories(self):  # get all categories
+        all_categories = []
 
+        for proj in self.Projects.keys():
+            if 'links' in self.Projects[proj]:
+                for key in self.Projects[proj]['links'].keys():
+                    if key not in all_categories:
+                        all_categories.append(key)
+        
+        all_categories.sort()
+        return all_categories
+
+    def get_contexts(self, cat):  # get contexts of a specific category
+        all_contexts = []
+        for proj in self.Projects.keys():
+            if 'links' in self.Projects[proj] and cat in self.Projects[proj]['links']:
+                for context in self.Projects[proj]['links'][cat]:
+                    if context not in all_contexts:
+                        all_contexts.append(context)
+
+        all_contexts.sort()
+        return all_contexts
+
+    def check_context(self, proj, cat, context):  # check if project links to specific context
+        return proj in self.Projects and 'links' in self.Projects[proj] and cat in self.Projects[proj]['links'] and context in self.Projects[proj]['links'][cat]
+
+    def check_no_context(self, proj, cat):  # check if project has no context from that category
+        return 'links' not in self.Projects[proj] or cat not in self.Projects[proj]['links'] or bool(self.Projects[proj]['links'])
+    
+    def check_context_in_data(self, cat, context):  # Check if context exists already in data
+        return bool(self.Contexts) and cat in self.Contexts and context in self.Contexts[cat]
+
+
+    # Moodification
     def add_project(self, name: str):
         assert name not in self.Projects
         self.Projects[name] = dict()
@@ -86,6 +125,26 @@ class Data:
         assert name in self.Projects
 
         del self.Projects[name]
+    
+    def add_category(self, name):
+        if name not in self.Contexts:
+            self.Contexts[name] = []
+    
+    def remove_category(self, name):
+        if name in self.Contexts:
+            del self.Contexts[name]
+    
+    def add_context(self, cat, context):
+        if cat not in self.Contexts:
+            self.add_category(cat)
+        if context not in self.Contexts[cat]:
+            self.Contexts[cat].append(context)
+            self.Contexts[cat].sort()
+    
+    def remove_context(self, cat, context):
+        assert cat in self.Contexts and context in self.Contexts[cat]
+        self.Contexts[cat].remove(context)
+
     
     def link(self, project, category, context):
         assert project in self.Projects
@@ -112,15 +171,27 @@ class TUIManager:
         self.mode_content = '*'  # Category or Project
         self.filter = []
         self.line_start = 0  # show from beginning by default
-        # self.line_length = 10  # show 10 lines by default
-        self.help_message_visible = False
-        self.help_message_line = 0
         self.unsafed_changes = False
+        
+        self.help_message_visible = False # help message
+        self.help_message_line = 0
+
+        self.cat_list_visible = False # category and context list
+        self.cat_list_line = 0
+        
     
     def return_main_text(self):
         if self.help_message_visible:
             text_rows = HELP_MESSAGE.splitlines()
             return '\n'.join(text_rows[self.help_message_line:])
+        
+        elif self.cat_list_visible:
+            text_rows = []
+            for cat in self.CONTENT.get_categories():
+                text_rows.append(f"# {cat}")
+                for context in self.CONTENT.get_contexts(cat):
+                    text_rows.append(f" - {context}{'\'' if not self.CONTENT.check_context_in_data(cat, context) else ''}")
+            return '\n'.join(text_rows[self.cat_list_line:])
         
         elif self.mode == 'open':  # Open Mode
             open_proj = self.CONTENT.Projects[self.mode_content]  # dict of the project that is open
@@ -129,9 +200,29 @@ class TUIManager:
             else:
                 text_rows = open_proj['resources'].keys()
                 return '\n'.join(text_rows)  # No Scrolling functionality for resources currently
+        
+        elif self.mode == 'group':  # Group Mode
+            if self.mode_content == '*':
+                text_rows = ['- ' + str(proj) for proj in self.CONTENT.Projects]
+                return '\n'.join(text_rows[self.line_start:])
+            elif self.mode_content in self.CONTENT.get_categories():
+                text_rows = []
+                contexts = self.CONTENT.get_contexts(self.mode_content)
+                for con in contexts:
+                    text_rows.append(f"# {con}{'\'' if not self.CONTENT.check_context_in_data(self.mode_content, con) else ''}")
+                    for proj in self.CONTENT.Projects:
+                        if self.CONTENT.check_context(proj,self.mode_content,con):
+                            text_rows.append(f" - {proj}")
+                    text_rows.append(f" ")
+                text_rows.append(f"# (Ungrouped)")
+                for proj in self.CONTENT.Projects:
+                    if self.CONTENT.check_no_context(proj, self.mode_content):
+                        text_rows.append(f" - {proj}")
+
+                return '\n'.join(text_rows[self.line_start:])
+
         else:
-            text_rows = ['- ' + str(proj) for proj in self.CONTENT.Projects]
-            return '\n'.join(text_rows[self.line_start:])
+            return '(Data cannot be presented)'
     
     def return_head_text(self):
         return f"=== ProjectManager2 ===  Mode: '{self.mode} {self.mode_content}' | Filters: {self.filter} | {'All safed' if not self.unsafed_changes else '>Unsafed Changes<'} ==="
@@ -151,6 +242,12 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
         assert args[1] in data.Projects
         tuimanager.mode = 'open'
         tuimanager.mode_content = args[1]
+        tuimanager.line_start = 0
+    elif args[0] == 'group':
+        assert args[1] == '*' or args[1] in data.get_categories() 
+        tuimanager.mode = 'group'
+        tuimanager.mode_content = args[1]
+        tuimanager.line_start = 0
     else:
         raise ValueError(f"Unknown Arguments {args}")
 
@@ -185,8 +282,14 @@ def main():
 
     # Show help
     @kb.add('f1')
-    def exit_app(event):
+    def show_help(event):
         man.help_message_visible = not man.help_message_visible
+        output_text.text = man.return_main_text()
+    
+    # Show categories
+    @kb.add('f2')
+    def show_cat(event):
+        man.cat_list_visible = not man.cat_list_visible
         output_text.text = man.return_main_text()
 
 
@@ -205,6 +308,8 @@ def main():
     def handle_down(event):
         if man.help_message_visible:
             man.help_message_line += 1
+        elif man.cat_list_visible:
+            man.cat_list_line += 1
         else:
             man.line_start +=1
         output_text.text = man.return_main_text()
@@ -212,7 +317,9 @@ def main():
     @kb.add('up')
     def handle_up(event):
         if man.help_message_visible:
-            man.help_message_line = max(man.help_message_line- 1,0)
+            man.help_message_line = max(man.help_message_line-1,0)
+        elif man.cat_list_visible:
+            man.cat_list_line = max(man.cat_list_line-1,0)
         else:
             man.line_start = max(man.line_start-1,0)
         output_text.text = man.return_main_text()
