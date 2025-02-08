@@ -28,8 +28,8 @@ HELP_MESSAGE = """
         archive <PROJECT>     -> archive a project
         unarchive <PROJECT>   -> unarchive a project
 
-        link <PROJECT> <CATEGORY> <CONTEXT>    -> Create a new link
-        unlink <PROJECT> <CATEGORY> <CONTEXT>  -> Remove a link
+        + link <PROJECT> <CATEGORY> <CONTEXT>    -> Create a new link
+        + unlink <PROJECT> <CATEGORY> <CONTEXT>  -> Remove a link
 
         + context-create <CATEGORY> <CONTEXT>   -> create a new context (automatically adds category)
         + context-delete <CATEGORY> <CONTEXT>   -> delete a context
@@ -562,3 +562,8 @@ if __name__ == "__main__":
 
 # MODE 2 Open-Mode
 # - shows resources of a specific projects
+
+# NEXT TODO:
+# - backup
+# - resource management
+# - fill my projects in and see how it works
