@@ -19,8 +19,8 @@ HELP_MESSAGE = """
         + group <CATEGORY>  -> open the group view with category (use 'group *' to show all projects without grouping)
         filter <CATEGORY> <CONTEXT>  -> only show projects with that context
 
-        note <PROJECT>   -> open markdown note
-        context-note <CATEGORY> <CONTEXT>  -> open markdown note 
+        + note <PROJECT>   -> open markdown note
+        + context-note <CATEGORY> <CONTEXT>  -> open markdown note 
 
     # Modifications
         + create <PROJECT>      -> create a new project
@@ -62,6 +62,8 @@ HELP_MESSAGE = """
         + f2      -> Show categories
         + esc     -> scroll to top
 """
+
+NOTES_SUBPATH = 'notes'
 
 class Data:
     """Data loading, dumping and modification"""
@@ -186,6 +188,34 @@ class Data:
         assert context in self.Contexts[category]
         self.Contexts[category][context]['qnote'] = text
 
+    def open_note_project(self, project):
+        assert project in self.Projects
+        notes_path =  os.path.join(self.LOCATION, NOTES_SUBPATH)
+        filename = str(project) + '.md'
+        file_path = os.path.join(notes_path, filename)
+        if not os.path.exists(notes_path):
+            os.makedirs(notes_path)
+        if not os.path.isfile(file_path):
+            with open(file_path, 'w+') as f:
+                pass
+        os.system(f"code -g '{file_path}' -n '{notes_path}'")
+
+    def open_note_context(self, category, context):
+        assert category in self.Contexts
+        assert context in self.Contexts[category]
+
+        notes_path =  os.path.join(self.LOCATION, NOTES_SUBPATH)
+        category_path = os.path.join(notes_path, category)
+        file_path = os.path.join(category_path, str(context) + '.md')
+
+        if not os.path.exists(notes_path):
+            os.makedirs(notes_path)
+        if not os.path.exists(category_path):
+            os.makedirs(category_path)
+        if not os.path.isfile(file_path):
+            with open(file_path, 'w+') as f:
+                pass
+        os.system(f"code -g '{file_path}' -n '{notes_path}'")
 
 
 class TUIManager:
@@ -205,20 +235,26 @@ class TUIManager:
         self.cat_list_line = 0
     
     def context_str(self, cat, context):
-        exists_in_file = '\''
+        exists_in_file = ' [?]'
         qnote = ''
         if self.CONTENT.check_context_in_data(cat, context):
             exists_in_file = ''
             if 'qnote' in self.CONTENT.Contexts[cat][context]:
                 qnote = ' (' + self.CONTENT.Contexts[cat][context]['qnote'] + ')'
-        return f"{context}{exists_in_file}{qnote}"
+        
+        notepath = os.path.join(self.CONTENT.LOCATION, NOTES_SUBPATH, str(cat), str(context) + '.md')
+        note = ' [N]' if os.path.isfile(notepath) else ''
+
+        return f"{context}{note}{exists_in_file}{qnote}"
     
     def project_str(self, project):
         assert project in self.CONTENT.Projects
         qnote = ''
+        note = ' [N]' if os.path.isfile(os.path.join(os.path.join(self.CONTENT.LOCATION, NOTES_SUBPATH), str(project) + '.md')) else ''
         if 'qnote' in self.CONTENT.Projects[project]:
             qnote = ' (' + self.CONTENT.Projects[project]['qnote'] + ')'
-        return f"{project}{qnote}"
+
+        return f"{project}{note}{qnote}"
     
     def return_main_text(self):
         if self.help_message_visible:
@@ -231,6 +267,7 @@ class TUIManager:
                 text_rows.append(f"# {cat}")
                 for context in self.CONTENT.get_contexts(cat):
                     text_rows.append(f" - {self.context_str(cat, context)}")
+                text_rows.append(' ')
             return '\n'.join(text_rows[self.cat_list_line:])
         
         elif self.mode == 'open':  # Open Mode
@@ -317,6 +354,10 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
     elif args[0] == 'context-qnote':
         data.set_qnote_context(args[1], args[2], ' '.join(args[3:]))
         tuimanager.unsafed_changes = True
+    elif args[0] == 'note':
+        data.open_note_project(args[1])
+    elif args[0] == 'context-note': 
+        data.open_note_context(args[1], args[2])
     else:
         raise ValueError(f"Unknown Arguments {args}")
 
@@ -414,7 +455,7 @@ def main():
     output_text = FormattedTextControl("This is the main text.")
     output_window = Window(content=output_text, wrap_lines=True)
 
-    # Commands for completer
+    # Commands for completer  # TODO update autocompletion
     commands = [
         'create',  # (PROJECT) create a new project
         'archive',  # (PROJECT) archive a project
