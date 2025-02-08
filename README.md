@@ -52,7 +52,7 @@ The second version of my project manager.
  link ProjectC LeadingAuthor MrX
  dump
  ```
- Now we get a nice overview of the different categories and contexts with `f1`, which looks just as intended.
+ Now we get a nice overview of the different categories and contexts with `f2`, which looks just as intended.
  Furthermore, using `group Conferences` we obtain a list of all projects grouped by the contexts in Conferences, and using `group LeadingAuthor` we obtain the same for the leading authors.
  
  If we want to move ProjectA from ConferenceA to ConferenceB, we can do this by linking `link ProjectA Conference ConferenceB`, and then `unlink ProjectA Conference ConferenceB`.
@@ -60,7 +60,7 @@ The second version of my project manager.
 
  Assume there is also a ConferenceC starting soon, which we have no project yet, but we want to keep track of it anyways. 
  Then we can create the context manually using `context-create Conference ConferenceC`.
- If we look into the overview with `f1`, we notice that there is a marker `[?]` for the contexts which are automatically created and no marked for those that are actually added. 
+ If we look into the overview with `f2`, we notice that there is a marker `[?]` for the contexts which are automatically created and no marked for those that are actually added. 
 
 ## Resources
 
