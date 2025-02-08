@@ -33,8 +33,8 @@ HELP_MESSAGE = """
     link <PROJECT> <CATEGORY> <CONTEXT>    -> Create a new link
     unlink <PROJECT> <CATEGORY> <CONTEXT>  -> Remove a link
 
-    context-create <CATEGORY> <CONTEXT>   -> create a new context
-    context-archive <CATEGORY> <CONTEXT>  -> archive a context
+    + context-create <CATEGORY> <CONTEXT>   -> create a new context
+    context-archive <CATEGORY> <CONTEXT>    -> archive a context
     context-unarchive <CATEGORY> <CONTEXT>  -> unarchive a context
 
     + code    -> Open vscode of the folder to make modifications manually
@@ -75,6 +75,11 @@ class Data:
             self.Projects = yaml.safe_load(infile)
         with open(os.path.join(self.LOCATION,'Active_Contexts.yaml'), 'r') as infile:
             self.Contexts = yaml.safe_load(infile)
+
+        if not self.Projects:
+            self.Projects = dict()
+        if not self.Contexts:
+            self.Contexts = dict()
     
     def dump(self):
         with open(os.path.join(self.LOCATION,'Active_Projects.yaml'), 'w') as outfile:
@@ -248,6 +253,9 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
         tuimanager.mode = 'group'
         tuimanager.mode_content = args[1]
         tuimanager.line_start = 0
+    elif args[0] == 'context-create':
+        data.add_context(args[1], args[2])
+        tuimanager.unsafed_changes = True
     else:
         raise ValueError(f"Unknown Arguments {args}")
 
