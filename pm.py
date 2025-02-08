@@ -65,6 +65,33 @@ HELP_MESSAGE = """
 
 NOTES_SUBPATH = 'notes'
 
+COMMANDS = [
+    'open',
+    'group',
+    'filter',
+    'note',
+    'context-note',
+    'create',
+    'delete',
+    'archvie',
+    'unarchive',
+    'link',
+    'unlink',
+    'context-create',
+    'context-delete',
+    'category-create',
+    'category-delete',
+    'qnote',
+    'context-qnote',
+    'code',
+    'reload',
+    'dump',
+    'backup',
+    'resource',
+    'resource-create',
+    'resource-info'
+    ]
+
 class Data:
     """Data loading, dumping and modification"""
     def __init__(self, LOCATION: Path):
@@ -306,6 +333,15 @@ class TUIManager:
     def return_head_text(self):
         return f"=== ProjectManager2 ===  Mode: '{self.mode} {self.mode_content}' | Filters: {self.filter} | {'All safed' if not self.unsafed_changes else '>Unsafed Changes<'}{' | HELP-VIEW' if self.help_message_visible else ''}{' | CONTEXT-OVERVIEW' if self.cat_list_visible else ''} ==="
 
+    def autocomplete_suggestions(self):
+        suggestions = []
+        suggestions.extend(COMMANDS)
+        suggestions.extend(self.CONTENT.Projects.keys())
+        suggestions.extend(self.CONTENT.get_categories())
+        for cat in self.CONTENT.get_categories():
+            suggestions.extend(self.CONTENT.get_contexts(cat))
+        return suggestions
+
 def CommandParser(data: Data, tuimanager: TUIManager, args):
     if args[0] == 'code':
         os.system(f"code '{data.LOCATION}'")
@@ -366,11 +402,27 @@ def main():
     # Load Location
     parser = argparse.ArgumentParser()
     parser.add_argument('LOCATION', type=Path, help='Specify folder.')
+    parser.add_argument('-i', '--init', action='store_true', help='Initialize necessary files in the folder.')
 
     # TODO write init function that generates the files
     
     args = parser.parse_args()
     LOCATION = args.LOCATION.resolve()
+
+    assert os.path.exists(LOCATION)  # Make sure location exists
+
+    if args.init:
+        print('Initializing files ...')
+        files_to_create = ["Active_Contexts.yaml", "Active_Projects.yaml"]
+        for file in files_to_create:
+            filepath = os.path.join(LOCATION,file)
+            if not os.path.exists(filepath):
+                with open(filepath, "w+") as f:
+                    pass
+                print(f"Created file: {file}")
+            else:
+                print(f"File {file} already exists.")
+
 
     # Load Data
     data = Data(LOCATION)
@@ -415,7 +467,7 @@ def main():
         output_text.text = man.return_main_text()
         head_text.text = man.return_head_text()
         command_input.text = ''  # Clear the input area
-        # raise ValueError('This is a test')  # TODO Just raise value error if options do not work
+        command_input.completer = WordCompleter(man.autocomplete_suggestions(), ignore_case=False) # Update the completer  # This is too heavy to do this every time ?
     
     # Scrolling text functionality
     @kb.add('down')
@@ -456,27 +508,8 @@ def main():
     output_window = Window(content=output_text, wrap_lines=True)
 
     # Commands for completer  # TODO update autocompletion
-    commands = [
-        'create',  # (PROJECT) create a new project
-        'archive',  # (PROJECT) archive a project
-        'unarchive',  # (PROJECT) unarchive a project
-        'link',  # (PROJECT CAT CONTEXT) create a new link
-        'unlink',  # (PROJECT CAT CONTEXT) remove a new link
-        'open',  # (PROJECT) open a project and show its resources
-        'group',  # (CAT) group projects according to context under category
-        'filter',  # (CAT CONTEXT) only show projects with that context (setting filter again unsets the filter)
-        'note',  # (PROJECT) open the markdown note of the context item
-        'qnote',  # (PROJECT) modify quicknote
 
-        'context-create',  # (CAT CONTEXT) create a new context
-        'context-archive',  # (CAT CONTEXT) archive a context
-        'context-unarchive',  # (CAT CONTEXT) unarchive a context
-        'context-note',  # (CAT CONTEXT) open the markdown note of the context item
-        'context-qnote',  # (CAT CONTEXT) modify quicknote
-
-        'resource',  # (RESOURCE ACTION) make action for resource. Only available in Open Mode [Actions: code, clone, info, open (link), ]
-    ]
-    command_completer = WordCompleter(commands, ignore_case=True)
+    command_completer = WordCompleter([], ignore_case=False)
 
     # Bottom input area with autocomplete
     command_input = TextArea(
@@ -507,6 +540,7 @@ def main():
     # Load once
     head_text.text = man.return_head_text()
     output_text.text = man.return_main_text()
+    command_input.completer = WordCompleter(man.autocomplete_suggestions(), ignore_case=False)
     application.run()
 
     # breakpoint()
