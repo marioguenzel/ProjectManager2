@@ -14,50 +14,53 @@ from prompt_toolkit.widgets import TextArea
 HELP_MESSAGE = """
     ### All modes (OPEN and GROUP) ###
     # TUI handling
-    + open <PROJECT>  -> open a project and show its resources
+        + open <PROJECT>  -> open a project and show its resources
 
-    + group <CATEGORY>  -> open the group view with category (use 'group *' to show all projects without grouping)
-    filter <CATEGORY> <CONTEXT>  -> only show projects with that context
+        + group <CATEGORY>  -> open the group view with category (use 'group *' to show all projects without grouping)
+        filter <CATEGORY> <CONTEXT>  -> only show projects with that context
 
-    note <PROJECT>   -> open markdown note
-    qnote <PROJECT>  -> modify quicknote
-
-    context-note <CATEGORY> <CONTEXT>  -> open markdown note 
-    context-note <CATEGORY> <CONTEXT>  -> modify quicknote 
+        note <PROJECT>   -> open markdown note
+        context-note <CATEGORY> <CONTEXT>  -> open markdown note 
 
     # Modifications
-    + create <PROJECT>      -> create a new project
-    archive <PROJECT>     -> archive a project
-    unarchive <PROJECT>   -> unarchive a project
+        + create <PROJECT>      -> create a new project
+        + delete <PROJECT>      -> delete a projects
+        archive <PROJECT>     -> archive a project
+        unarchive <PROJECT>   -> unarchive a project
 
-    link <PROJECT> <CATEGORY> <CONTEXT>    -> Create a new link
-    unlink <PROJECT> <CATEGORY> <CONTEXT>  -> Remove a link
+        link <PROJECT> <CATEGORY> <CONTEXT>    -> Create a new link
+        unlink <PROJECT> <CATEGORY> <CONTEXT>  -> Remove a link
 
-    + context-create <CATEGORY> <CONTEXT>   -> create a new context
-    context-archive <CATEGORY> <CONTEXT>    -> archive a context
-    context-unarchive <CATEGORY> <CONTEXT>  -> unarchive a context
+        + context-create <CATEGORY> <CONTEXT>   -> create a new context (automatically adds category)
+        + context-delete <CATEGORY> <CONTEXT>   -> delete a context
 
-    + code    -> Open vscode of the folder to make modifications manually
-    + reload  -> Make sure to reload when making manual modifications
-    + dump  -> Dump changes to file (Will be removed in later version)
+        + category-create <CATEGORY>  -> create a new category
+        + category-delete <CATEGORY>  -> deleta a category
 
-    backup  -> push changes to git (git -A commit; push)
+        + qnote <PROJECT>  -> modify quicknote
+        + context-qnote <CATEGORY> <CONTEXT>  -> modify quicknote 
+
+        + code    -> Open vscode of the folder to make modifications manually
+        + reload  -> Make sure to reload when making manual modifications
+        + dump  -> Dump changes to file (Will be removed in later version)
+
+        backup  -> push changes to git (git -A commit; push)
 
     ### In OPEN-mode only ###
-    resource <RESOURCE> <ACTION>  -> do action for resource
-    resource-create <RESOURCE> <TYPE> <source>  -> create a resource of TYPE with source
-    resource-info <RESOURCE>      -> show infor of that resource 
+        resource <RESOURCE> <ACTION>  -> do action for resource
+        resource-create <RESOURCE> <TYPE> <source>  -> create a resource of TYPE with source
+        resource-info <RESOURCE>      -> show infor of that resource 
 
     ### ACTIONS ###
-    - SVN: code, clone
-    - GIT: code, clone
-    - LINK: open
+        - SVN: code, clone
+        - GIT: code, clone
+        - LINK: open
 
     ### keys ###
-    + ctrl-q  -> Quit
-    + f1      -> Show help
-    + f2      -> Show categories
-    + esc     -> scroll to top
+        + ctrl-q  -> Quit
+        + f1      -> Show help
+        + f2      -> Show categories
+        + esc     -> scroll to top
 """
 
 class Data:
@@ -97,6 +100,10 @@ class Data:
                     if key not in all_categories:
                         all_categories.append(key)
         
+        for key in self.Contexts:
+            if key not in all_categories:
+                all_categories.append(key)
+        
         all_categories.sort()
         return all_categories
 
@@ -107,6 +114,11 @@ class Data:
                 for context in self.Projects[proj]['links'][cat]:
                     if context not in all_contexts:
                         all_contexts.append(context)
+        
+        if cat in self.Contexts:
+            for context in self.Contexts[cat]:
+                if context not in all_contexts:
+                    all_contexts.append(context)
 
         all_contexts.sort()
         return all_contexts
@@ -115,7 +127,7 @@ class Data:
         return proj in self.Projects and 'links' in self.Projects[proj] and cat in self.Projects[proj]['links'] and context in self.Projects[proj]['links'][cat]
 
     def check_no_context(self, proj, cat):  # check if project has no context from that category
-        return 'links' not in self.Projects[proj] or cat not in self.Projects[proj]['links'] or bool(self.Projects[proj]['links'])
+        return 'links' not in self.Projects[proj] or cat not in self.Projects[proj]['links'] or not bool(self.Projects[proj]['links'][cat])
     
     def check_context_in_data(self, cat, context):  # Check if context exists already in data
         return bool(self.Contexts) and cat in self.Contexts and context in self.Contexts[cat]
@@ -133,7 +145,7 @@ class Data:
     
     def add_category(self, name):
         if name not in self.Contexts:
-            self.Contexts[name] = []
+            self.Contexts[name] = dict()
     
     def remove_category(self, name):
         if name in self.Contexts:
@@ -143,14 +155,12 @@ class Data:
         if cat not in self.Contexts:
             self.add_category(cat)
         if context not in self.Contexts[cat]:
-            self.Contexts[cat].append(context)
-            self.Contexts[cat].sort()
+            self.Contexts[cat][context] = dict()
     
     def remove_context(self, cat, context):
         assert cat in self.Contexts and context in self.Contexts[cat]
-        self.Contexts[cat].remove(context)
+        del self.Contexts[cat][context]
 
-    
     def link(self, project, category, context):
         assert project in self.Projects
         if 'links' not in self.Projects[project]:
@@ -166,6 +176,16 @@ class Data:
         assert context in self.Projects[project]['links'][category]
         
         self.Projects[project]['links'][category].remove(context)
+    
+    def set_qnote_project(self, project, text):
+        assert project in self.Projects
+        self.Projects[project]['qnote'] = text
+    
+    def set_qnote_context(self, category, context, text):
+        assert category in self.Contexts
+        assert context in self.Contexts[category]
+        self.Contexts[category][context]['qnote'] = text
+
 
 
 class TUIManager:
@@ -183,7 +203,22 @@ class TUIManager:
 
         self.cat_list_visible = False # category and context list
         self.cat_list_line = 0
-        
+    
+    def context_str(self, cat, context):
+        exists_in_file = '\''
+        qnote = ''
+        if self.CONTENT.check_context_in_data(cat, context):
+            exists_in_file = ''
+            if 'qnote' in self.CONTENT.Contexts[cat][context]:
+                qnote = ' (' + self.CONTENT.Contexts[cat][context]['qnote'] + ')'
+        return f"{context}{exists_in_file}{qnote}"
+    
+    def project_str(self, project):
+        assert project in self.CONTENT.Projects
+        qnote = ''
+        if 'qnote' in self.CONTENT.Projects[project]:
+            qnote = ' (' + self.CONTENT.Projects[project]['qnote'] + ')'
+        return f"{project}{qnote}"
     
     def return_main_text(self):
         if self.help_message_visible:
@@ -195,34 +230,36 @@ class TUIManager:
             for cat in self.CONTENT.get_categories():
                 text_rows.append(f"# {cat}")
                 for context in self.CONTENT.get_contexts(cat):
-                    text_rows.append(f" - {context}{'\'' if not self.CONTENT.check_context_in_data(cat, context) else ''}")
+                    text_rows.append(f" - {self.context_str(cat, context)}")
             return '\n'.join(text_rows[self.cat_list_line:])
         
         elif self.mode == 'open':  # Open Mode
             open_proj = self.CONTENT.Projects[self.mode_content]  # dict of the project that is open
+            text_rows = []
+            text_rows.append(f"### {self.project_str(self.mode_content)} ###")
             if 'resources' not in open_proj or not bool(open_proj['resources']):
-                return '(No Resources)'
+                text_rows.append('(No Resources)')
             else:
-                text_rows = open_proj['resources'].keys()
-                return '\n'.join(text_rows)  # No Scrolling functionality for resources currently
+                text_rows.extend(open_proj['resources'].keys())
+            return '\n'.join(text_rows)  # No Scrolling functionality for resources currently
         
         elif self.mode == 'group':  # Group Mode
             if self.mode_content == '*':
-                text_rows = ['- ' + str(proj) for proj in self.CONTENT.Projects]
+                text_rows = ['- ' + self.project_str(proj) for proj in self.CONTENT.Projects]
                 return '\n'.join(text_rows[self.line_start:])
             elif self.mode_content in self.CONTENT.get_categories():
                 text_rows = []
                 contexts = self.CONTENT.get_contexts(self.mode_content)
                 for con in contexts:
-                    text_rows.append(f"# {con}{'\'' if not self.CONTENT.check_context_in_data(self.mode_content, con) else ''}")
+                    text_rows.append(f"# {self.context_str(self.mode_content,con)}")
                     for proj in self.CONTENT.Projects:
                         if self.CONTENT.check_context(proj,self.mode_content,con):
-                            text_rows.append(f" - {proj}")
+                            text_rows.append(f" - {self.project_str(proj)}")
                     text_rows.append(f" ")
                 text_rows.append(f"# (Ungrouped)")
                 for proj in self.CONTENT.Projects:
                     if self.CONTENT.check_no_context(proj, self.mode_content):
-                        text_rows.append(f" - {proj}")
+                        text_rows.append(f" - {self.project_str(proj)}")
 
                 return '\n'.join(text_rows[self.line_start:])
 
@@ -243,6 +280,9 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
     elif args[0] == 'create':
         data.add_project(args[1])
         tuimanager.unsafed_changes = True
+    elif args[0] == 'delete':
+        data.remove_project(args[1])
+        tuimanager.unsafed_changes = True
     elif args[0] == 'open':
         assert args[1] in data.Projects
         tuimanager.mode = 'open'
@@ -256,6 +296,27 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
     elif args[0] == 'context-create':
         data.add_context(args[1], args[2])
         tuimanager.unsafed_changes = True
+    elif args[0] == 'context-delete':
+        data.remove_context(args[1], args[2])
+        tuimanager.unsafed_changes = True
+    elif args[0] == 'category-create':
+        data.add_category(args[1])
+        tuimanager.unsafed_changes = True
+    elif args[0] == 'category-delete':
+        data.remove_category(args[1])
+        tuimanager.unsafed_changes = True
+    elif args[0] == 'link':
+        data.link(args[1], args[2], args[3])
+        tuimanager.unsafed_changes = True
+    elif args[0] == 'unlink':
+        data.unlink(args[1], args[2], args[3])
+        tuimanager.unsafed_changes = True
+    elif args[0] == 'qnote':
+        data.set_qnote_project(args[1], ' '.join(args[2:]))
+        tuimanager.unsafed_changes = True
+    elif args[0] == 'context-qnote':
+        data.set_qnote_context(args[1], args[2], ' '.join(args[3:]))
+        tuimanager.unsafed_changes = True
     else:
         raise ValueError(f"Unknown Arguments {args}")
 
@@ -264,6 +325,8 @@ def main():
     # Load Location
     parser = argparse.ArgumentParser()
     parser.add_argument('LOCATION', type=Path, help='Specify folder.')
+
+    # TODO write init function that generates the files
     
     args = parser.parse_args()
     LOCATION = args.LOCATION.resolve()
