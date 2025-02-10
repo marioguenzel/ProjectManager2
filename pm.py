@@ -3,6 +3,7 @@ import argparse
 from pathlib import Path
 import os
 import time
+import re
 
 from prompt_toolkit import Application
 from prompt_toolkit.completion import WordCompleter
@@ -558,7 +559,7 @@ def main():
         output_text.text = man.return_main_text()
         head_text.text = man.return_head_text()
         command_input.text = ''  # Clear the input area
-        command_input.completer = WordCompleter(man.autocomplete_suggestions(), ignore_case=False) # Update the completer  # This is too heavy to do this every time ?
+        command_input.completer = WordCompleter(man.autocomplete_suggestions(), ignore_case=False,WORD=True) # Update the completer  # This is too heavy to do this every time ?
     
     # Scrolling text functionality
     @kb.add('down')
@@ -600,7 +601,7 @@ def main():
 
     # Commands for completer  # TODO update autocompletion
 
-    command_completer = WordCompleter([], ignore_case=False)
+    command_completer = WordCompleter([], ignore_case=False,WORD=True)
 
     # Bottom input area with autocomplete
     command_input = TextArea(
@@ -631,7 +632,7 @@ def main():
     # Load once
     head_text.text = man.return_head_text()
     output_text.text = man.return_main_text()
-    command_input.completer = WordCompleter(man.autocomplete_suggestions(), ignore_case=False)
+    command_input.completer = WordCompleter(man.autocomplete_suggestions(), ignore_case=False,WORD=True)
     application.run()
 
     # breakpoint()
