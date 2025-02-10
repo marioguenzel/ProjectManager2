@@ -660,3 +660,4 @@ if __name__ == "__main__":
 # - archive functionality
 # - filter functionality
 # - Add images to the readme file
+# - allow resources to be shown and actioned without the need to open the project first
