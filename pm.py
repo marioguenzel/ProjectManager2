@@ -656,7 +656,7 @@ if __name__ == "__main__":
 # - shows resources of a specific projects
 
 # NEXT TODO:
-# - autocomplete resources
 # - fill my projects in and see how it works
 # - archive functionality
 # - filter functionality
+# - Add images to the readme file
