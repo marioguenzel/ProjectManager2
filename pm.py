@@ -25,6 +25,9 @@ HELP_MESSAGE = """
         backup  -> push changes to git (git -A commit; push)
         code    -> Open vscode of the folder to make modifications manually
         reload  -> Make sure to reload when making manual modifications
+
+        resource <PROJECT> <RESOURCE> <ACTION>  -> do action for resource
+        show-resources  -> toggle whether to show resources in group view
         
     # Modifications
         dump    -> Dump changes to file 
@@ -38,13 +41,18 @@ HELP_MESSAGE = """
         category-create <CATEGORY>  -> create a new category
         category-delete <CATEGORY>  -> deleta a category
 
+        resource-create <PROJ> <RESOURCE> <TYPE> <SOURCE>  -> create a resource with name RESOURCE of TYPE with SOURCE for PROJ
+        resource-delete <PROJ> <RESOURCE>                  -> delete a resource
+
         qnote <PROJECT>  -> modify quicknote
         context-qnote <CATEGORY> <CONTEXT>  -> modify quicknote 
 
     ### In OPEN-mode only ###
-        resource <RESOURCE> <ACTION>  -> do action for resource
+    (<PROJECT> is left out for commands:)
+
+        resource <RESOURCE> <ACTION>                -> do action for resource
         resource-create <RESOURCE> <TYPE> <SOURCE>  -> create a resource with name RESOURCE of TYPE with SOURCE
-        resource-delete <RESOURCE>  -> delete a resource
+        resource-delete <RESOURCE>                  -> delete a resource
 
     ### ACTIONS ###
         - SVN: code, checkout
@@ -92,10 +100,15 @@ COMMANDS = [
     'resource',
     'resource-create',
     'resource-delete',
+    'show-resources',
+
+    'SVN',
+    'GIT',
+    'LINK',
 
     'checkout',
     'clone',
-    'open'
+    'open',
     ]
 
 class Data:
@@ -310,6 +323,8 @@ class TUIManager:
 
         self.cat_list_visible = False # category and context list
         self.cat_list_line = 0
+
+        self.show_resources = False  # show resources in group view
     
     def context_str(self, cat, context):
         exists_in_file = ' [?]'
@@ -378,8 +393,14 @@ class TUIManager:
         
         elif self.mode == 'group':  # Group Mode
             if self.mode_content == '*':
-                text_rows = ['- ' + self.project_str(proj) for proj in self.CONTENT.Projects]
+                text_rows = []
+                for proj in self.CONTENT.Projects:
+                    text_rows.append('- ' + self.project_str(proj))
+                    if self.show_resources:
+                        for res in self.CONTENT.get_resources(proj):
+                            text_rows.append('  - ' + self.resources_str(proj,res))
                 return '\n'.join(text_rows[self.line_start:])
+            
             elif self.mode_content in self.CONTENT.get_categories():
                 text_rows = []
                 contexts = self.CONTENT.get_contexts(self.mode_content)
@@ -388,11 +409,17 @@ class TUIManager:
                     for proj in self.CONTENT.Projects:
                         if self.CONTENT.check_context(proj,self.mode_content,con):
                             text_rows.append(f" - {self.project_str(proj)}")
+                            if self.show_resources:
+                                for res in self.CONTENT.get_resources(proj):
+                                    text_rows.append('  - ' + self.resources_str(proj,res))
                     text_rows.append(f" ")
                 text_rows.append(f"# (Ungrouped)")
                 for proj in self.CONTENT.Projects:
                     if self.CONTENT.check_no_context(proj, self.mode_content):
                         text_rows.append(f" - {self.project_str(proj)}")
+                        if self.show_resources:
+                            for res in self.CONTENT.get_resources(proj):
+                                text_rows.append('  - ' + self.resources_str(proj,res))
 
                 return '\n'.join(text_rows[self.line_start:])
 
@@ -400,7 +427,7 @@ class TUIManager:
             return '(Data cannot be presented)'
     
     def return_head_text(self):
-        return f"=== ProjectManager2 ===  Mode: '{self.mode} {self.mode_content}' | Filters: {self.filter} | {'All safed' if not self.unsafed_changes else '>Unsafed Changes<'}{' | HELP-VIEW' if self.help_message_visible else ''}{' | CONTEXT-OVERVIEW' if self.cat_list_visible else ''} ==="
+        return f"=== ProjectManager2 ===  Mode: '{self.mode} {self.mode_content}' | Showing Resources: {self.show_resources} | Filters: {self.filter} | {'All safed' if not self.unsafed_changes else '>Unsafed Changes<'}{' | HELP-VIEW' if self.help_message_visible else ''}{' | CONTEXT-OVERVIEW' if self.cat_list_visible else ''} ==="
 
     def autocomplete_suggestions(self):
         suggestions = []
@@ -475,19 +502,27 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
         os.system(f"git -C '{data.LOCATION}' commit -m 'Backup from ProjectManager2 on {time.ctime()}' > /dev/null")
         os.system(f"git -C '{data.LOCATION}' push --quiet")
     elif args[0] == 'resource-create':
-        assert tuimanager.mode == 'open'
-        proj = tuimanager.mode_content
-        data.add_resource(proj,args[1], args[2], args[3])
+        if tuimanager.mode == 'open':
+            proj = tuimanager.mode_content
+            data.add_resource(proj,args[1], args[2], args[3])
+        else:
+            data.add_resource(args[1], args[2], args[3], args[4])
         tuimanager.unsafed_changes = True
     elif args[0] == 'resource-delete':
-        assert tuimanager.mode == 'open'
-        proj = tuimanager.mode_content
-        data.remove_resource(proj, args[1])
+        if tuimanager.mode == 'open':
+            proj = tuimanager.mode_content
+            data.remove_resource(proj, args[1])
+        else:
+            data.remove_resource(args[1], args[2])
         tuimanager.unsafed_changes = True
     elif args[0] == 'resource':
-        assert tuimanager.mode == 'open'
-        proj = tuimanager.mode_content
-        data.resource_action(proj, args[1], args[2])
+        if tuimanager.mode == 'open':
+            proj = tuimanager.mode_content
+            data.resource_action(proj, args[1], args[2])
+        else:
+            data.resource_action(args[1], args[2], args[3])
+    elif args[0] == 'show-resources':
+        tuimanager.show_resources = not tuimanager.show_resources
     else:
         raise ValueError(f"Unknown Arguments {args}")
 
@@ -660,4 +695,3 @@ if __name__ == "__main__":
 # - archive functionality
 # - filter functionality
 # - Add images to the readme file
-# - allow resources to be shown and actioned without the need to open the project first
