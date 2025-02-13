@@ -16,8 +16,10 @@ from prompt_toolkit.widgets import TextArea
 HELP_MESSAGE = """
     ### All modes (OPEN and GROUP) ###
     # TUI handling
-        open <PROJECT>    -> open a project and show its resources
-        group <CATEGORY>  -> open the group view with category (use 'group *' to show all projects without grouping)
+        open <PROJECT>               -> open a project and show its resources
+        group <CATEGORY>             -> open the group view with category (use 'group *' to show all projects without grouping)
+        filter <CATEGORY> <CONTEXT>  -> only show projects with that context
+        filter-remove                -> remove all filters
 
         note <PROJECT>                     -> open markdown note
         context-note <CATEGORY> <CONTEXT>  -> open markdown note 
@@ -44,8 +46,10 @@ HELP_MESSAGE = """
         resource-create <PROJ> <RESOURCE> <TYPE> <SOURCE>  -> create a resource with name RESOURCE of TYPE with SOURCE for PROJ
         resource-delete <PROJ> <RESOURCE>                  -> delete a resource
 
-        qnote <PROJECT>  -> modify quicknote
-        context-qnote <CATEGORY> <CONTEXT>  -> modify quicknote 
+        qnote <PROJECT> <TEXT>                     -> modify quicknote
+        qnote-delete <PROJECT>                     -> modify quicknote
+        context-qnote <CATEGORY> <CONTEXT> <TEXT>  -> modify quicknote 
+        context-qnote-delete <CATEGORY> <CONTEXT>  -> modify quicknote 
 
     ### In OPEN-mode only ###
     (<PROJECT> is left out for commands:)
@@ -66,8 +70,6 @@ HELP_MESSAGE = """
         + esc     -> scroll to top
 
     ### To be added someday ###
-        filter <CATEGORY> <CONTEXT>  -> only show projects with that context
-
         archive <PROJECT>     -> archive a project
         unarchive <PROJECT>   -> unarchive a project
 """
@@ -79,6 +81,7 @@ COMMANDS = [
     'open',
     'group',
     'filter',
+    'filter-remove',
     'note',
     'context-note',
     'create',
@@ -93,6 +96,8 @@ COMMANDS = [
     'category-delete',
     'qnote',
     'context-qnote',
+    'qnote-delete',
+    'context-qnote-delete',
     'code',
     'reload',
     'dump',
@@ -331,8 +336,8 @@ class TUIManager:
         qnote = ''
         if self.CONTENT.check_context_in_data(cat, context):
             exists_in_file = ''
-            if 'qnote' in self.CONTENT.Contexts[cat][context]:
-                qnote = ' (' + self.CONTENT.Contexts[cat][context]['qnote'] + ')'
+            if 'qnote' in self.CONTENT.Contexts[cat][context] and self.CONTENT.Contexts[cat][context]['qnote'] != '':
+                qnote = '  (' + self.CONTENT.Contexts[cat][context]['qnote'] + ')'
         
         notepath = os.path.join(self.CONTENT.LOCATION, NOTES_SUBPATH, str(cat), str(context) + '.md')
         note = ' [N]' if os.path.isfile(notepath) else ''
@@ -343,8 +348,8 @@ class TUIManager:
         assert project in self.CONTENT.Projects
         qnote = ''
         note = ' [N]' if os.path.isfile(os.path.join(os.path.join(self.CONTENT.LOCATION, NOTES_SUBPATH), str(project) + '.md')) else ''
-        if 'qnote' in self.CONTENT.Projects[project]:
-            qnote = ' (' + self.CONTENT.Projects[project]['qnote'] + ')'
+        if 'qnote' in self.CONTENT.Projects[project] and self.CONTENT.Projects[project]['qnote'] != '':
+            qnote = '  (' + self.CONTENT.Projects[project]['qnote'] + ')'
 
         return f"{project}{note}{qnote}"
     
@@ -395,10 +400,11 @@ class TUIManager:
             if self.mode_content == '*':
                 text_rows = []
                 for proj in self.CONTENT.Projects:
-                    text_rows.append('- ' + self.project_str(proj))
-                    if self.show_resources:
-                        for res in self.CONTENT.get_resources(proj):
-                            text_rows.append('  - ' + self.resources_str(proj,res))
+                    if all([self.CONTENT.check_context(proj,f1,f2) for f1,f2 in self.filter]):
+                        text_rows.append('- ' + self.project_str(proj))
+                        if self.show_resources:
+                            for res in self.CONTENT.get_resources(proj):
+                                text_rows.append('  - ' + self.resources_str(proj,res))
                 return '\n'.join(text_rows[self.line_start:])
             
             elif self.mode_content in self.CONTENT.get_categories():
@@ -407,19 +413,21 @@ class TUIManager:
                 for con in contexts:
                     text_rows.append(f"# {self.context_str(self.mode_content,con)}")
                     for proj in self.CONTENT.Projects:
-                        if self.CONTENT.check_context(proj,self.mode_content,con):
+                        if all([self.CONTENT.check_context(proj,f1,f2) for f1,f2 in self.filter]):
+                            if self.CONTENT.check_context(proj,self.mode_content,con):
+                                text_rows.append(f" - {self.project_str(proj)}")
+                                if self.show_resources:
+                                    for res in self.CONTENT.get_resources(proj):
+                                        text_rows.append('  - ' + self.resources_str(proj,res))
+                    text_rows.append(f" ")
+                text_rows.append(f"# (Ungrouped)")
+                for proj in self.CONTENT.Projects:
+                    if all([self.CONTENT.check_context(proj,f1,f2) for f1,f2 in self.filter]):
+                        if self.CONTENT.check_no_context(proj, self.mode_content):
                             text_rows.append(f" - {self.project_str(proj)}")
                             if self.show_resources:
                                 for res in self.CONTENT.get_resources(proj):
                                     text_rows.append('  - ' + self.resources_str(proj,res))
-                    text_rows.append(f" ")
-                text_rows.append(f"# (Ungrouped)")
-                for proj in self.CONTENT.Projects:
-                    if self.CONTENT.check_no_context(proj, self.mode_content):
-                        text_rows.append(f" - {self.project_str(proj)}")
-                        if self.show_resources:
-                            for res in self.CONTENT.get_resources(proj):
-                                text_rows.append('  - ' + self.resources_str(proj,res))
 
                 return '\n'.join(text_rows[self.line_start:])
 
@@ -439,6 +447,7 @@ class TUIManager:
         suggestions.extend(self.CONTENT.get_categories())
         for cat in self.CONTENT.get_categories():
             suggestions.extend(self.CONTENT.get_contexts(cat))
+        suggestions.sort()
         return suggestions
 
 def CommandParser(data: Data, tuimanager: TUIManager, args):
@@ -524,6 +533,19 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
             data.resource_action(args[1], args[2], args[3])
     elif args[0] == 'show-resources':
         tuimanager.show_resources = not tuimanager.show_resources
+    elif args[0] == 'filter':
+        if [args[1],args[2]] in tuimanager.filter:
+            tuimanager.filter.remove([args[1],args[2]])
+        else:
+            tuimanager.filter.append([args[1],args[2]])
+    elif args[0] == 'filter-remove':
+        tuimanager.filter = []
+    elif args[0] == 'qnote-delete':
+        data.set_qnote_project(args[1], '')
+        tuimanager.unsafed_changes = True
+    elif args[0] == 'context-qnote-delete':
+        data.set_qnote_context(args[1], args[2], '')
+        tuimanager.unsafed_changes = True
     else:
         raise ValueError(f"Unknown Arguments {args}")
 
