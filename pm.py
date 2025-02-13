@@ -303,7 +303,7 @@ class Data:
         elif action == 'code':
             os.system(f"code '{this_resource_path}'")
         elif action == 'open':
-            os.system(f"open '{this_resource_path}'")
+            os.system(f"open '{resource_dict['source']}'")
         else:
             raise ValueError(f"Action {action} is not available for resource of type {resource_dict['type']}")
 
@@ -496,7 +496,8 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
     elif args[0] == 'backup':
         # check if git repo
         assert os.path.exists(os.path.join(data.LOCATION,'.git'))
-        os.system(f"git -C '{data.LOCATION}' add -A 'notes' > /dev/null")
+        if os.path.exists(os.path.join(data.LOCATION,'notes')):
+            os.system(f"git -C '{data.LOCATION}' add -A 'notes' > /dev/null")
         os.system(f"git -C '{data.LOCATION}' add -A 'Active_Contexts.yaml' > /dev/null")
         os.system(f"git -C '{data.LOCATION}' add -A 'Active_Projects.yaml' > /dev/null")
         os.system(f"git -C '{data.LOCATION}' commit -m 'Backup from ProjectManager2 on {time.ctime()}' > /dev/null")
@@ -691,7 +692,7 @@ if __name__ == "__main__":
 # - shows resources of a specific projects
 
 # NEXT TODO:
-# - fill my projects in and see how it works
 # - archive functionality
+# - archive option: just switch the active and archive file while loading and dumping
 # - filter functionality
 # - Add images to the readme file
