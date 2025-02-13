@@ -13,7 +13,7 @@ The second version of my project manager.
  3. Run the project manager init: `python pm -i DIR`
  4. You can create a backup with the command `backup <enter>`
  5. The backup should have been pushed to github automatically.
- 6. Optional: Add the alias `alias pm="<PYTHON-PATH> <THIS-PATH>.pm DIR"` to your path to always have the project manager at hand.
+ 6. Optional: Add the alias `alias pm="<PYTHON-PATH> <THIS-PATH>/pm.py DIR"` to your path to always have the project manager at hand.
 
 ## Run
  1. Just run the command `python pm DIR` (or `pm` if you created the alias)
