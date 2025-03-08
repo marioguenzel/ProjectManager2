@@ -6,7 +6,9 @@ import time
 import re
 
 from prompt_toolkit import Application
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import CompleteEvent,WordCompleter, NestedCompleter,Completion
+from typing import Iterable
+from prompt_toolkit.document import Document
 from prompt_toolkit.layout import Layout
 from prompt_toolkit.layout.containers import HSplit, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
@@ -245,6 +247,8 @@ class Data:
         assert context in self.Projects[project]['links'][category]
         
         self.Projects[project]['links'][category].remove(context)
+        if len(self.Projects[project]['links'][category]) == 0:
+            del self.Projects[project]['links'][category]
     
     def set_qnote_project(self, project, text):
         assert project in self.Projects
@@ -449,6 +453,56 @@ class TUIManager:
             suggestions.extend(self.CONTENT.get_contexts(cat))
         suggestions.sort()
         return suggestions
+    
+    def autocomplete_dict_suggestions(self):
+        projects_dict = {proj: None for proj in sorted(self.CONTENT.Projects.keys())}
+        categories_dict = {cat: None for cat in sorted(self.CONTENT.get_categories())}
+        categories_contexts_dict = {cat: {con: None for con in sorted(self.CONTENT.get_contexts(cat))} for cat in sorted(self.CONTENT.get_categories())}
+        projects_resources_dict = {proj: {res: None for res in sorted(self.CONTENT.get_resources(proj))} for proj in sorted(self.CONTENT.Projects.keys())}
+        def resources(proj):
+            return {res: None for res in sorted(self.CONTENT.get_resources(proj))}
+        def resources_actions(proj):
+            return {res: {'code': None,'clone': None,'checkout': None,'open': None} for res in sorted(self.CONTENT.get_resources(proj))}
+        projects_resources_actions_dict = {proj: resources_actions(proj) for proj in sorted(self.CONTENT.Projects.keys())}
+        projects_categories_contexts_dict = {proj: categories_contexts_dict for proj in sorted(self.CONTENT.Projects.keys())}
+
+        complete_dict = {
+            'open': projects_dict,
+            'group': categories_dict,
+            'filter': categories_contexts_dict,
+            'filter-remove': None,
+            'note': projects_dict,
+            'context-note': categories_contexts_dict,
+            'backup': None,
+            'code': None,
+            'reload': None,
+            'show-resources': None,
+            'dump': None,
+            'create': None,
+            'delete': projects_dict,
+            'link': projects_categories_contexts_dict,
+            'unlink': projects_categories_contexts_dict,
+            'context-create': categories_contexts_dict,
+            'context-delete': categories_contexts_dict,
+            'category-create': categories_dict,
+            'category-delete': categories_dict,
+            'qnote': projects_dict,
+            'qnote-delete': projects_dict,
+            'context-qnote': categories_contexts_dict,
+            'context-qnote-delete': categories_contexts_dict,
+        }
+        if self.mode == 'open':
+            open_proj = self.mode_content
+            complete_dict['resource'] = resources_actions(open_proj)
+            complete_dict['resource-create'] = None
+            complete_dict['resource-delete'] = resources(open_proj)
+        else:
+            complete_dict['resource'] = projects_resources_actions_dict
+            complete_dict['resource-create'] = projects_dict
+            complete_dict['resource-delete'] = projects_resources_dict
+
+        complete_dict = dict(sorted(complete_dict.items()))
+        return complete_dict
 
 def CommandParser(data: Data, tuimanager: TUIManager, args):
     if args[0] == 'code':
@@ -550,6 +604,40 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
         raise ValueError(f"Unknown Arguments {args}")
 
 
+class MyNestedCompleter(NestedCompleter):  # Adding the WORD option to the nested completer
+    def get_completions(
+        self, document: Document, complete_event: CompleteEvent
+    ) -> Iterable[Completion]:
+        # Split document.
+        text = document.text_before_cursor.lstrip()
+        stripped_len = len(document.text_before_cursor) - len(text)
+
+        # If there is a space, check for the first term, and use a
+        # subcompleter.
+        if " " in text:
+            first_term = text.split()[0]
+            completer = self.options.get(first_term)
+
+            # If we have a sub completer, use this for the completions.
+            if completer is not None:
+                remaining_text = text[len(first_term) :].lstrip()
+                move_cursor = len(text) - len(remaining_text) + stripped_len
+
+                new_document = Document(
+                    remaining_text,
+                    cursor_position=document.cursor_position - move_cursor,
+                )
+
+                yield from completer.get_completions(new_document, complete_event)
+
+        # No space in the input: behave exactly like `WordCompleter`.
+        else:
+            completer = WordCompleter(
+                list(self.options.keys()), ignore_case=self.ignore_case,WORD=True
+            )
+            yield from completer.get_completions(document, complete_event)
+
+
 def main():
     # Load Location
     parser = argparse.ArgumentParser()
@@ -617,7 +705,8 @@ def main():
         output_text.text = man.return_main_text()
         head_text.text = man.return_head_text()
         command_input.text = ''  # Clear the input area
-        command_input.completer = WordCompleter(man.autocomplete_suggestions(), ignore_case=False,WORD=True) # Update the completer  # This is too heavy to do this every time ?
+        command_input.completer = MyNestedCompleter.from_nested_dict(man.autocomplete_dict_suggestions())
+        # command_input.completer = WordCompleter(man.autocomplete_suggestions(), ignore_case=False,WORD=True) # Update the completer  # This is too heavy to do this every time ?
     
     # Scrolling text functionality
     @kb.add('down')
@@ -690,7 +779,8 @@ def main():
     # Load once
     head_text.text = man.return_head_text()
     output_text.text = man.return_main_text()
-    command_input.completer = WordCompleter(man.autocomplete_suggestions(), ignore_case=False,WORD=True)
+    # command_input.completer = WordCompleter(man.autocomplete_suggestions(), ignore_case=False,WORD=True)
+    command_input.completer = MyNestedCompleter.from_nested_dict(man.autocomplete_dict_suggestions())
     application.run()
 
     # breakpoint()
