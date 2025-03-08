@@ -69,11 +69,11 @@ HELP_MESSAGE = """
         + ctrl-q  -> Quit
         + f1      -> Show help
         + f2      -> Show categories
-        + esc     -> scroll to top
+        + ctrl-t  -> scroll to top
 
     ### To be added someday ###
         archive <PROJECT>     -> archive a project
-        unarchive <PROJECT>   -> unarchive a project
+        archive-context <CATEGORY> <CONTEXT>     -> archive a context
 """
 
 NOTES_SUBPATH = 'notes'
@@ -398,6 +398,8 @@ class TUIManager:
             else:
                 for res in open_proj['resources']:
                     text_rows.append(f" - {self.resources_str(self.mode_content,res)}")
+            text_rows.append(' ')
+            text_rows.append(f'Links: {open_proj.get('links', 'None')}')
             return '\n'.join(text_rows)  # No Scrolling functionality for resources currently
         
         elif self.mode == 'group':  # Group Mode
@@ -729,7 +731,7 @@ def main():
             man.line_start = max(man.line_start-1,0)
         output_text.text = man.return_main_text()
     
-    @kb.add('escape')  # jumping to 0
+    @kb.add('c-t')  # jumping to 0
     def handle_escape(event):
         if man.help_message_visible:
             man.help_message_line = 0
