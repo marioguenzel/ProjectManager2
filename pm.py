@@ -702,7 +702,7 @@ def main():
     # Bottom input area with autocomplete
     command_input = TextArea(
         prompt='> ',
-        height=2,
+        height=1,
         multiline=False,
         completer=command_completer
     )
