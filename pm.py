@@ -79,45 +79,6 @@ HELP_MESSAGE = """
 NOTES_SUBPATH = 'notes'
 RESOURCES_SUBPATH = 'resources'
 
-COMMANDS = [
-    'open',
-    'group',
-    'filter',
-    'filter-remove',
-    'note',
-    'context-note',
-    'create',
-    'delete',
-    'archvie',
-    'unarchive',
-    'link',
-    'unlink',
-    'context-create',
-    'context-delete',
-    'category-create',
-    'category-delete',
-    'qnote',
-    'context-qnote',
-    'qnote-delete',
-    'context-qnote-delete',
-    'code',
-    'reload',
-    'dump',
-    'backup',
-    'resource',
-    'resource-create',
-    'resource-delete',
-    'show-resources',
-
-    'SVN',
-    'GIT',
-    'LINK',
-
-    'checkout',
-    'clone',
-    'open',
-    ]
-
 class Data:
     """Data loading, dumping and modification"""
     def __init__(self, LOCATION: Path):
@@ -442,19 +403,6 @@ class TUIManager:
     
     def return_head_text(self):
         return f"=== ProjectManager2 ===  Mode: '{self.mode} {self.mode_content}' | Showing Resources: {self.show_resources} | Filters: {self.filter} | {'All safed' if not self.unsafed_changes else '>Unsafed Changes<'}{' | HELP-VIEW' if self.help_message_visible else ''}{' | CONTEXT-OVERVIEW' if self.cat_list_visible else ''} ==="
-
-    def autocomplete_suggestions(self):
-        suggestions = []
-        suggestions.extend(COMMANDS)
-        for proj in self.CONTENT.Projects.keys():
-            suggestions.append(proj)
-            for res in self.CONTENT.get_resources(proj):
-                suggestions.append(res)
-        suggestions.extend(self.CONTENT.get_categories())
-        for cat in self.CONTENT.get_categories():
-            suggestions.extend(self.CONTENT.get_contexts(cat))
-        suggestions.sort()
-        return suggestions
     
     def autocomplete_dict_suggestions(self):
         projects_dict = {proj: None for proj in sorted(self.CONTENT.Projects.keys())}
@@ -748,8 +696,7 @@ def main():
     output_text = FormattedTextControl("This is the main text.")
     output_window = Window(content=output_text, wrap_lines=True)
 
-    # Commands for completer  # TODO update autocompletion
-
+    # Commands for completer  
     command_completer = WordCompleter([], ignore_case=False,WORD=True)
 
     # Bottom input area with autocomplete
