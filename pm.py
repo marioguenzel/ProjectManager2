@@ -19,7 +19,7 @@ HELP_MESSAGE = """
     ### All modes (OPEN and GROUP) ###
     # TUI handling
         open <PROJECT>               -> open a project and show its resources
-        group <CATEGORY>             -> open the group view with category (use 'group *' to show all projects without grouping)
+        group <CATEGORY>             -> open the group view with category (use 'group' or 'group *' to show all projects without grouping)
         filter <CATEGORY> <CONTEXT>  -> only show projects with that context
         filter-remove                -> remove all filters
 
@@ -546,10 +546,15 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
         tuimanager.mode_content = args[1]
         tuimanager.line_start = 0
     elif args[0] == 'group':
-        assert args[1] == '*' or args[1] in data.get_categories() 
-        tuimanager.mode = 'group'
-        tuimanager.mode_content = args[1]
-        tuimanager.line_start = 0
+        if len(args) == 1:
+            tuimanager.mode = 'group'
+            tuimanager.mode_content = '*'
+            tuimanager.line_start = 0
+        else:
+            assert args[1] == '*' or args[1] in data.get_categories() 
+            tuimanager.mode = 'group'
+            tuimanager.mode_content = args[1]
+            tuimanager.line_start = 0
     elif args[0] == 'context-create':
         data.add_context(args[1], args[2])
         tuimanager.unsafed_changes = True
