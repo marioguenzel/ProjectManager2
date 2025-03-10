@@ -42,8 +42,8 @@ HELP_MESSAGE = """
 
         context-create <CATEGORY> <CONTEXT>   -> create a new context (automatically adds category)
         context-delete <CATEGORY> <CONTEXT>   -> delete a context
-        category-create <CATEGORY>  -> create a new category
-        category-delete <CATEGORY>  -> deleta a category
+        category-create <CATEGORY>            -> create a new category
+        category-delete <CATEGORY>            -> deleta a category
 
         resource-create <PROJ> <RESOURCE> <TYPE> <SOURCE>  -> create a resource with name RESOURCE of TYPE with SOURCE for PROJ
         resource-delete <PROJ> <RESOURCE>                  -> delete a resource
@@ -52,6 +52,9 @@ HELP_MESSAGE = """
         qnote-delete <PROJECT>                     -> modify quicknote
         context-qnote <CATEGORY> <CONTEXT> <TEXT>  -> modify quicknote 
         context-qnote-delete <CATEGORY> <CONTEXT>  -> modify quicknote 
+
+        archive <PROJECT>                          -> archive a project
+        archive-context <CATEGORY> <CONTEXT>       -> archive a context
 
     ### In OPEN-mode only ###
     (<PROJECT> is left out for commands:)
@@ -70,10 +73,8 @@ HELP_MESSAGE = """
         + f1      -> Show help
         + f2      -> Show categories
         + ctrl-t  -> scroll to top
-
-    ### To be added someday ###
-        archive <PROJECT>     -> archive a project
-        archive-context <CATEGORY> <CONTEXT>     -> archive a context
+        + ctrl-n  -> next project in full list (open-mode only)
+        + ctrl-p  -> previous project in full list (open-mode only)
 """
 
 NOTES_SUBPATH = 'notes'
@@ -81,30 +82,84 @@ RESOURCES_SUBPATH = 'resources'
 
 class Data:
     """Data loading, dumping and modification"""
-    def __init__(self, LOCATION: Path):
+    def __init__(self, LOCATION: Path, Archive=False):
         self.LOCATION = LOCATION
         self.Projects = dict()
         self.Contexts = dict()
+        self.Archive_Projects = dict()
+        self.Archive_Contexts = dict()
+        self.Archive_Bool = Archive
         self.load()
     
     # Loading and Dumping
     def load(self):
-        self.Projects = dict()
-        with open(os.path.join(self.LOCATION,'Active_Projects.yaml'), 'r') as infile:
-            self.Projects = yaml.safe_load(infile)
-        with open(os.path.join(self.LOCATION,'Active_Contexts.yaml'), 'r') as infile:
-            self.Contexts = yaml.safe_load(infile)
+        if not self.Archive_Bool:
+            # Load Active
+            with open(os.path.join(self.LOCATION,'Active_Projects.yaml'), 'r') as infile:
+                self.Projects = yaml.safe_load(infile)
+            with open(os.path.join(self.LOCATION,'Active_Contexts.yaml'), 'r') as infile:
+                self.Contexts = yaml.safe_load(infile)
+            
+            if not self.Projects:
+                self.Projects = dict()
+            if not self.Contexts:
+                self.Contexts = dict()
 
-        if not self.Projects:
-            self.Projects = dict()
-        if not self.Contexts:
-            self.Contexts = dict()
+            # Load Archive
+            with open(os.path.join(self.LOCATION,'Archive_Projects.yaml'), 'r') as infile:
+                self.Archive_Projects = yaml.safe_load(infile)
+            with open(os.path.join(self.LOCATION,'Archive_Contexts.yaml'), 'r') as infile:
+                self.Archive_Contexts = yaml.safe_load(infile)
+            
+            if not self.Archive_Projects:
+                self.Archive_Projects = dict()
+            if not self.Archive_Contexts:
+                self.Archive_Contexts = dict()
+
+        else:  # Switch Archive and Active file
+            # Load Active
+            with open(os.path.join(self.LOCATION,'Archive_Projects.yaml'), 'r') as infile:
+                self.Projects = yaml.safe_load(infile)
+            with open(os.path.join(self.LOCATION,'Archive_Contexts.yaml'), 'r') as infile:
+                self.Contexts = yaml.safe_load(infile)
+            
+            if not self.Projects:
+                self.Projects = dict()
+            if not self.Contexts:
+                self.Contexts = dict()
+
+            # Load Archive
+            with open(os.path.join(self.LOCATION,'Active_Projects.yaml'), 'r') as infile:
+                self.Archive_Projects = yaml.safe_load(infile)
+            with open(os.path.join(self.LOCATION,'Active_Contexts.yaml'), 'r') as infile:
+                self.Archive_Contexts = yaml.safe_load(infile)
+            
+            if not self.Archive_Projects:
+                self.Archive_Projects = dict()
+            if not self.Archive_Contexts:
+                self.Archive_Contexts = dict()
+
+        
     
     def dump(self):
-        with open(os.path.join(self.LOCATION,'Active_Projects.yaml'), 'w') as outfile:
-            yaml.dump(self.Projects, outfile)
-        with open(os.path.join(self.LOCATION,'Active_Contexts.yaml'), 'w') as outfile:
-            yaml.dump(self.Contexts, outfile)
+        if not self.Archive_Bool:
+            with open(os.path.join(self.LOCATION,'Active_Projects.yaml'), 'w') as outfile:
+                yaml.dump(self.Projects, outfile)
+            with open(os.path.join(self.LOCATION,'Active_Contexts.yaml'), 'w') as outfile:
+                yaml.dump(self.Contexts, outfile)
+            with open(os.path.join(self.LOCATION,'Archive_Projects.yaml'), 'w') as outfile:
+                yaml.dump(self.Archive_Projects, outfile)
+            with open(os.path.join(self.LOCATION,'Archive_Contexts.yaml'), 'w') as outfile:
+                yaml.dump(self.Archive_Contexts, outfile)
+        else:  # Switch Archive and Active file
+            with open(os.path.join(self.LOCATION,'Archive_Projects.yaml'), 'w') as outfile:
+                yaml.dump(self.Projects, outfile)
+            with open(os.path.join(self.LOCATION,'Archive_Contexts.yaml'), 'w') as outfile:
+                yaml.dump(self.Contexts, outfile)
+            with open(os.path.join(self.LOCATION,'Active_Projects.yaml'), 'w') as outfile:
+                yaml.dump(self.Archive_Projects, outfile)
+            with open(os.path.join(self.LOCATION,'Active_Contexts.yaml'), 'w') as outfile:
+                yaml.dump(self.Archive_Contexts, outfile)
 
     # Get Information
     def get_categories(self):  # get all categories
@@ -157,6 +212,7 @@ class Data:
     # Moodification
     def add_project(self, name: str):
         assert name not in self.Projects
+        assert name not in self.Archive_Projects
         self.Projects[name] = dict()
     
     def remove_project(self, name: str):
@@ -173,6 +229,9 @@ class Data:
             del self.Contexts[name]
     
     def add_context(self, cat, context):
+        if cat in self.Archive_Contexts:
+            assert context not in self.Archive_Contexts[cat]
+
         if cat not in self.Contexts:
             self.add_category(cat)
         if context not in self.Contexts[cat]:
@@ -276,6 +335,19 @@ class Data:
             os.system(f"open '{resource_dict['source']}'")
         else:
             raise ValueError(f"Action {action} is not available for resource of type {resource_dict['type']}")
+    
+    def archive_project(self, project):
+        assert project in self.Projects
+        assert project not in self.Archive_Projects
+        self.Archive_Projects[project] = self.Projects.pop(project)
+    
+    def archive_context(self, category, context):
+        assert bool(self.Contexts) and category in self.Contexts and context in self.Contexts[category]
+        if category in self.Archive_Contexts:
+            assert context not in self.Archive_Contexts[category]
+        else:
+            self.Archive_Contexts[category] = dict()
+        self.Archive_Contexts[category][context] = self.Contexts[category].pop(context)
 
 
 class TUIManager:
@@ -333,8 +405,6 @@ class TUIManager:
             cloned = " [C]"
         
         return f"{resource_dict['type']}: {resource}{cloned} ({resource_dict['source']})"
-
-
 
     def return_main_text(self):
         if self.help_message_visible:
@@ -440,6 +510,8 @@ class TUIManager:
             'qnote-delete': projects_dict,
             'context-qnote': categories_contexts_dict,
             'context-qnote-delete': categories_contexts_dict,
+            'archive' : projects_dict,
+            'archive-context': categories_contexts_dict
         }
         if self.mode == 'open':
             open_proj = self.mode_content
@@ -513,6 +585,8 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
             os.system(f"git -C '{data.LOCATION}' add -A 'notes' > /dev/null")
         os.system(f"git -C '{data.LOCATION}' add -A 'Active_Contexts.yaml' > /dev/null")
         os.system(f"git -C '{data.LOCATION}' add -A 'Active_Projects.yaml' > /dev/null")
+        os.system(f"git -C '{data.LOCATION}' add -A 'Archive_Contexts.yaml' > /dev/null")
+        os.system(f"git -C '{data.LOCATION}' add -A 'Archive_Projects.yaml' > /dev/null")
         os.system(f"git -C '{data.LOCATION}' commit -m 'Backup from ProjectManager2 on {time.ctime()}' > /dev/null")
         os.system(f"git -C '{data.LOCATION}' push --quiet")
     elif args[0] == 'resource-create':
@@ -549,6 +623,15 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
         tuimanager.unsafed_changes = True
     elif args[0] == 'context-qnote-delete':
         data.set_qnote_context(args[1], args[2], '')
+        tuimanager.unsafed_changes = True
+    elif args[0] == 'archive':
+        if tuimanager.mode == 'open' and tuimanager.mode_content == args[1]:  # Jump out of open mode to avoid breaking the UI
+            tuimanager.mode = 'group'
+            tuimanager.mode_content = '*'
+        data.archive_project(args[1])
+        tuimanager.unsafed_changes = True
+    elif args[0] == 'archive-context':
+        data.archive_context(args[1], args[2])
         tuimanager.unsafed_changes = True
     else:
         raise ValueError(f"Unknown Arguments {args}")
@@ -593,6 +676,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('LOCATION', type=Path, help='Specify folder.')
     parser.add_argument('-i', '--init', action='store_true', help='Initialize necessary files in the folder.')
+    parser.add_argument('-a', '--archive', action='store_true', help='Open the archive instead of active.')
     
     args = parser.parse_args()
     LOCATION = args.LOCATION.resolve()
@@ -601,7 +685,7 @@ def main():
 
     if args.init:
         print('Initializing files ...')
-        files_to_create = ["Active_Contexts.yaml", "Active_Projects.yaml"]
+        files_to_create = ["Active_Contexts.yaml", "Active_Projects.yaml","Archive_Contexts.yaml", "Archive_Projects.yaml"]
         for file in files_to_create:
             filepath = os.path.join(LOCATION,file)
             if not os.path.isfile(filepath):
@@ -613,7 +697,7 @@ def main():
 
 
     # Load Data
-    data = Data(LOCATION)
+    data = Data(LOCATION, args.archive)
     data.load()
 
     # Start the Manager
@@ -646,6 +730,25 @@ def main():
         output_text.text = man.return_main_text()
         head_text.text = man.return_head_text()
 
+    # Next project (only in open-mode)
+    @kb.add('c-n')
+    def next(event):
+        if man.mode == 'open':
+            list_projects = list(man.CONTENT.Projects)
+            idx_curr_project = list_projects.index(man.mode_content)
+            man.mode_content = list_projects[idx_curr_project + 1] if idx_curr_project + 1 < len(list_projects) else list_projects[0]
+            output_text.text = man.return_main_text()
+            head_text.text = man.return_head_text()
+    
+    # Previous project (only in open-mode)
+    @kb.add('c-p')
+    def next(event):
+        if man.mode == 'open':
+            list_projects = list(man.CONTENT.Projects)
+            idx_curr_project = list_projects.index(man.mode_content)
+            man.mode_content = list_projects[idx_curr_project - 1]
+            output_text.text = man.return_main_text()
+            head_text.text = man.return_head_text()
 
     # Event when Enter is pressed
     @kb.add('enter')
@@ -753,7 +856,6 @@ if __name__ == "__main__":
 # - shows resources of a specific projects
 
 # NEXT TODO:
-# - archive functionality
-# - archive option: just switch the active and archive file while loading and dumping
 # - filter functionality
+# - negative filters
 # - Add images to the readme file
