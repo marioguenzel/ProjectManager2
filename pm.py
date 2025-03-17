@@ -15,6 +15,8 @@ from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.widgets import TextArea
 
+from prompt_toolkit.formatted_text import HTML
+
 HELP_MESSAGE = """
     ### All modes (OPEN and GROUP) ###
     # TUI handling
@@ -39,6 +41,7 @@ HELP_MESSAGE = """
         delete <PROJECT>      -> delete a projects
         link <PROJECT> <CATEGORY> <CONTEXT>    -> Create a new link
         unlink <PROJECT> <CATEGORY> <CONTEXT>  -> Remove a link
+        move <PROJECT> <CATEGORY> <FROM-CONTEXT> <TO-CONTEXT> -> Remove and create link
 
         context-create <CATEGORY> <CONTEXT>   -> create a new context (automatically adds category)
         context-delete <CATEGORY> <CONTEXT>   -> delete a context
@@ -258,8 +261,8 @@ class Data:
             self.Projects[project]['links'] = dict()
         if category not in self.Projects[project]['links']:
             self.Projects[project]['links'][category] = []
-
-        self.Projects[project]['links'][category].append(context)
+        if context not in self.Projects[project]['links'][category]:
+            self.Projects[project]['links'][category].append(context)
     
     def unlink(self, project, category, context):
         assert project in self.Projects
@@ -379,7 +382,7 @@ class TUIManager:
         notepath = os.path.join(self.CONTENT.LOCATION, NOTES_SUBPATH, str(cat), str(context) + '.md')
         note = ' [N]' if os.path.isfile(notepath) else ''
 
-        return f"{context}{note}{exists_in_file}{qnote}"
+        return f"<ansigreen>{context}</ansigreen>{note}{exists_in_file}{qnote}"
     
     def project_str(self, project):
         assert project in self.CONTENT.Projects
@@ -388,7 +391,7 @@ class TUIManager:
         if 'qnote' in self.CONTENT.Projects[project] and self.CONTENT.Projects[project]['qnote'] != '':
             qnote = '  (' + self.CONTENT.Projects[project]['qnote'] + ')'
 
-        return f"{project}{note}{qnote}"
+        return f"<ansicyan>{project}</ansicyan>{note}{qnote}"
     
     def resources_str(self, project, resource):
         assert project in self.CONTENT.Projects
@@ -404,7 +407,7 @@ class TUIManager:
         if os.path.exists(this_resource_path):
             cloned = " [C]"
         
-        return f"{resource_dict['type']}: {resource}{cloned} ({resource_dict['source']})"
+        return f"{resource_dict['type']}: <ansiyellow>{resource}</ansiyellow>{cloned} ({resource_dict['source']})"
 
     def return_main_text(self):
         if self.help_message_visible:
@@ -418,7 +421,7 @@ class TUIManager:
                 for context in self.CONTENT.get_contexts(cat):
                     text_rows.append(f" - {self.context_str(cat, context)}")
                 text_rows.append(' ')
-            return '\n'.join(text_rows[self.cat_list_line:])
+            return HTML('\n'.join(text_rows[self.cat_list_line:]))
         
         elif self.mode == 'open':  # Open Mode
             open_proj = self.CONTENT.Projects[self.mode_content]  # dict of the project that is open
@@ -431,7 +434,7 @@ class TUIManager:
                     text_rows.append(f" - {self.resources_str(self.mode_content,res)}")
             text_rows.append(' ')
             text_rows.append(f'Links: {open_proj.get('links', 'None')}')
-            return '\n'.join(text_rows)  # No Scrolling functionality for resources currently
+            return HTML('\n'.join(text_rows) ) # No Scrolling functionality for resources currently
         
         elif self.mode == 'group':  # Group Mode
             if self.mode_content == '*':
@@ -442,7 +445,7 @@ class TUIManager:
                         if self.show_resources:
                             for res in self.CONTENT.get_resources(proj):
                                 text_rows.append('  - ' + self.resources_str(proj,res))
-                return '\n'.join(text_rows[self.line_start:])
+                return HTML('\n'.join(text_rows[self.line_start:]))
             
             elif self.mode_content in self.CONTENT.get_categories():
                 text_rows = []
@@ -466,13 +469,13 @@ class TUIManager:
                                 for res in self.CONTENT.get_resources(proj):
                                     text_rows.append('  - ' + self.resources_str(proj,res))
 
-                return '\n'.join(text_rows[self.line_start:])
+                return HTML('\n'.join(text_rows[self.line_start:]))
 
         else:
             return '(Data cannot be presented)'
     
     def return_head_text(self):
-        return f"=== ProjectManager2 ===  Mode: '{self.mode} {self.mode_content}' | Showing Resources: {self.show_resources} | Filters: {self.filter} | {'All safed' if not self.unsafed_changes else '>Unsafed Changes<'}{' | HELP-VIEW' if self.help_message_visible else ''}{' | CONTEXT-OVERVIEW' if self.cat_list_visible else ''} ==="
+        return HTML(f"<b>=== ProjectManager2 ===</b>  <ansigreen>Mode: '{self.mode} {self.mode_content}'</ansigreen> | Showing Resources: {self.show_resources} | Filters: {self.filter} | {'All safed' if not self.unsafed_changes else '<ansired>&gt; Unsafed Changes &lt;</ansired>'}{' | HELP-VIEW' if self.help_message_visible else ''}{' | CONTEXT-OVERVIEW' if self.cat_list_visible else ''} ===")
     
     def autocomplete_dict_suggestions(self):
         projects_dict = {proj: None for proj in sorted(self.CONTENT.Projects.keys())}
@@ -485,6 +488,8 @@ class TUIManager:
             return {res: {'code': None,'clone': None,'checkout': None,'open': None} for res in sorted(self.CONTENT.get_resources(proj))}
         projects_resources_actions_dict = {proj: resources_actions(proj) for proj in sorted(self.CONTENT.Projects.keys())}
         projects_categories_contexts_dict = {proj: categories_contexts_dict for proj in sorted(self.CONTENT.Projects.keys())}
+        categories_contexts_contexts_dict = {cat: {con: {con2: None for con2 in sorted(self.CONTENT.get_contexts(cat))} for con in sorted(self.CONTENT.get_contexts(cat))} for cat in sorted(self.CONTENT.get_categories())}
+        projects_categories_contexts_contexts_dict = {proj: categories_contexts_contexts_dict for proj in sorted(self.CONTENT.Projects.keys())}
 
         complete_dict = {
             'open': projects_dict,
@@ -502,6 +507,7 @@ class TUIManager:
             'delete': projects_dict,
             'link': projects_categories_contexts_dict,
             'unlink': projects_categories_contexts_dict,
+            'move': projects_categories_contexts_contexts_dict,
             'context-create': categories_contexts_dict,
             'context-delete': categories_contexts_dict,
             'category-create': categories_dict,
@@ -572,6 +578,11 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
         tuimanager.unsafed_changes = True
     elif args[0] == 'unlink':
         data.unlink(args[1], args[2], args[3])
+        tuimanager.unsafed_changes = True
+    elif args[0] == 'move':
+        assert len(args) == 5
+        data.unlink(args[1], args[2], args[3])
+        data.link(args[1], args[2], args[4])
         tuimanager.unsafed_changes = True
     elif args[0] == 'qnote':
         data.set_qnote_project(args[1], ' '.join(args[2:]))
