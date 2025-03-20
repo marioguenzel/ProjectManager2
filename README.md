@@ -60,7 +60,7 @@ The second version of my project manager.
 
  Assume there is also a ConferenceC starting soon, which we have no project yet, but we want to keep track of it anyways. 
  Then we can create the context manually using `context-create Conference ConferenceC`.
- If we look into the overview with `f2`, we notice that there is a marker `[?]` for the contexts which are automatically created and no marked for those that are actually added. 
+ If we look into the overview with `f2`, we notice that there is a marker `[?]` for the contexts which are automatically created and no marker for those that are manually added. 
 
 ## Resources
 
@@ -85,7 +85,7 @@ The second version of my project manager.
 ## VSCODE-Integration
  This manager integrates vscode as the main application for coding.
  To that end, the resource action `code` as described above is integrated for cloned git repos and for checkouted svn repos.
- Furthermore, using simply the term `clone` when the project manager is open, opens the project manager directory `DIR` in vscode and allows manual modifications of the actions and context files, using the yaml format. 
+ Furthermore, using simply the term `code` when the project manager is open, opens the project manager directory `DIR` in vscode and allows manual modifications of the actions and context files, using the yaml format. 
  Please make sure to use the command `reload` when making manual configurations. (Not dumped modifications from the textual user interface will get lost though.)
 
 ## Notes
