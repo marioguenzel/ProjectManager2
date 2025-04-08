@@ -1,3 +1,4 @@
+import subprocess
 import yaml
 import argparse
 from pathlib import Path
@@ -328,6 +329,8 @@ class Data:
             if not os.path.exists(this_resource_path):  # Make directory
                 os.makedirs(this_resource_path)
             os.system(f"git clone {resource_dict['source']} '{this_resource_path}'")
+            # subprocess.run(["git", "clone",f"{resource_dict['source']}", f"{this_resource_path}"])
+            # subprocess.run(f"git clone {resource_dict['source']} '{this_resource_path}'")
         elif action == 'checkout' and resource_dict['type'] == 'SVN':
             if not os.path.exists(this_resource_path):  # Make directory
                 os.makedirs(this_resource_path)
