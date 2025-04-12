@@ -83,6 +83,7 @@ HELP_MESSAGE = """
 
 NOTES_SUBPATH = 'notes'
 RESOURCES_SUBPATH = 'resources'
+FAST_SCROLL = 10
 
 class Data:
     """Data loading, dumping and modification"""
@@ -799,6 +800,26 @@ def main():
             man.cat_list_line = max(man.cat_list_line-1,0)
         else:
             man.line_start = max(man.line_start-1,0)
+        output_text.text = man.return_main_text()
+
+    @kb.add('s-down')
+    def handle_down(event):
+        if man.help_message_visible:
+            man.help_message_line += FAST_SCROLL
+        elif man.cat_list_visible:
+            man.cat_list_line += FAST_SCROLL
+        else:
+            man.line_start += FAST_SCROLL
+        output_text.text = man.return_main_text()
+    
+    @kb.add('s-up')
+    def handle_up(event):
+        if man.help_message_visible:
+            man.help_message_line = max(man.help_message_line-FAST_SCROLL,0)
+        elif man.cat_list_visible:
+            man.cat_list_line = max(man.cat_list_line-FAST_SCROLL,0)
+        else:
+            man.line_start = max(man.line_start-FAST_SCROLL,0)
         output_text.text = man.return_main_text()
     
     @kb.add('c-t')  # jumping to 0
