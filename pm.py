@@ -35,7 +35,9 @@ HELP_MESSAGE = """
 
         resource <PROJECT> <RESOURCE> <ACTION>  -> do action for resource
         show-resources  -> toggle whether to show resources in group view
-        
+        show-cat <CATEGORY>  -> toggle whether to show corresponding context after project name
+
+
     # Modifications
         dump    -> Dump changes to file 
         create <PROJECT>      -> create a new project
@@ -142,9 +144,7 @@ class Data:
             if not self.Archive_Projects:
                 self.Archive_Projects = dict()
             if not self.Archive_Contexts:
-                self.Archive_Contexts = dict()
-
-        
+                self.Archive_Contexts = dict() 
     
     def dump(self):
         if not self.Archive_Bool:
@@ -374,6 +374,7 @@ class TUIManager:
         self.cat_list_line = 0
 
         self.show_resources = False  # show resources in group view
+        self.show_cats = []
     
     def context_str(self, cat, context):
         exists_in_file = ' [?]'
@@ -391,11 +392,19 @@ class TUIManager:
     def project_str(self, project):
         assert project in self.CONTENT.Projects
         qnote = ''
+        showcats = ''
         note = ' [N]' if os.path.isfile(os.path.join(os.path.join(self.CONTENT.LOCATION, NOTES_SUBPATH), str(project) + '.md')) else ''
         if 'qnote' in self.CONTENT.Projects[project] and self.CONTENT.Projects[project]['qnote'] != '':
             qnote = '  (' + self.CONTENT.Projects[project]['qnote'] + ')'
+        showcats_lst = []
+        for cat in self.show_cats:
+            if 'links'in self.CONTENT.Projects[project] and cat in self.CONTENT.Projects[project]['links']:
+                if self.CONTENT.Projects[project]['links'][cat] is not None and len(self.CONTENT.Projects[project]['links'][cat]) != 0:
+                    showcats_lst.append(f"{cat}: {', '.join(self.CONTENT.Projects[project]['links'][cat])}")
+        if len(showcats_lst) != 0:
+            showcats = ' (' + '; '.join(showcats_lst) + ')'
 
-        return f"<ansicyan>{project}</ansicyan>{note}{qnote}"
+        return f"<ansicyan>{project}</ansicyan>{note}<ansibrightblack>{showcats}</ansibrightblack>{qnote}"
     
     def resources_str(self, project, resource):
         assert project in self.CONTENT.Projects
@@ -506,6 +515,7 @@ class TUIManager:
             'code': None,
             'reload': None,
             'show-resources': None,
+            'show-cat': categories_dict,
             'dump': None,
             'create': None,
             'delete': projects_dict,
@@ -535,6 +545,13 @@ class TUIManager:
 
         complete_dict = dict(sorted(complete_dict.items()))
         return complete_dict
+
+    def toggle_show_cat(self, category):
+        assert category in self.CONTENT.get_categories()
+        if category in self.show_cats:
+            self.show_cats.remove(category)
+        else:
+            self.show_cats.append(category)
 
 def CommandParser(data: Data, tuimanager: TUIManager, args):
     if args[0] == 'code':
@@ -631,6 +648,8 @@ def CommandParser(data: Data, tuimanager: TUIManager, args):
             data.resource_action(args[1], args[2], args[3])
     elif args[0] == 'show-resources':
         tuimanager.show_resources = not tuimanager.show_resources
+    elif args[0] == 'show-cat':
+        tuimanager.toggle_show_cat(args[1])
     elif args[0] == 'filter':
         if [args[1],args[2]] in tuimanager.filter:
             tuimanager.filter.remove([args[1],args[2]])
@@ -899,3 +918,4 @@ if __name__ == "__main__":
 # - filter functionality
 # - negative filters
 # - Add images to the readme file
+# - show-cat command
